@@ -33,20 +33,27 @@
 %%
 
 prog : 
-  | EOF                                           { Some A.Nop }
+  | EOF                                           { None }
   | INT; MAIN; LPAREN; RPAREN; s=block EOF        { Some s }
   ;
 
 block : 
-  i=LBRACE; s=stmt_list; RBRACE                   { A.Seq(s,i) }
-
-rev_stmt_list : 
-  | (* empty *)                                   { [] }
-  | l=rev_stmt_list; s=stmt                       { s::l }
+  LBRACE; s=stmt_list; RBRACE                   { s }
+  ;
+stmt_list :
+  | (* nothing *)                                 { A.Seq([],dummyinfo) }
+  | d=decl; sl=stmt_list                          { d sl }
+  | s=stmt; sl=stmt_list                          
+    { A.cons s (A.extract_info_stmt s) sl}
   ;
 
-stmt_list : 
-  | l=rev_stmt_list                               { List.rev l }
+decl : 
+  | t=ty; id=ID; SEMICOLON;
+    { let {v;i}=id in 
+      fun s -> A.Decl(v,t,s,i) }
+  | t=ty; id=ID; ii=ASSIGN; e=exp; SEMICOLON;
+    { let {v;i}=id in 
+      fun s -> A.Decl(v,t,A.cons (A.Assign(v,e,ii)) ii s,i) }
   ;
 
 stmt : 
@@ -62,10 +69,6 @@ simpopt :
 
 simp : 
   | e=exp                                         { A.Exp(e, A.extract_info_exp e) }
-  | t=ty; id=ID                                   { let {v;i}=id in A.Decl(v,t, A.extract_info_type t) }
-  | t=ty; id=ID; i=ASSIGN; e=exp                  { let {v;i}=id in A.Seq
-                                                    ([A.Decl(v,t, A.extract_info_type t); 
-                                                    A.Assign(v,e,i)], A.extract_info_type t) }
   | v=lvalue; i=ASSIGN; e=exp                     { A.Assign(v,e,i) }
   | i=RETURN; e=exp                               { A.Return(e,i) }
   ;
@@ -111,7 +114,12 @@ control :
     sop=elseopt                                   { A.If(e,s,sop,i) }
   | i=FOR; LPAREN; sop1=simpopt;
     SEMICOLON; e=exp; SEMICOLON; sop2=simpopt;
-    RPAREN; s=stmt                                { A.Seq([sop1;A.While(e, A.Seq([s; sop2], A.extract_info_stmt s), i)], A.extract_info_stmt sop1) }
+    RPAREN; s=stmt                                
+    { A.Seq([sop1;A.While(e, A.Seq([s; sop2], A.extract_info_stmt s), i)], A.extract_info_stmt sop1) }
+  | i=FOR; LPAREN; d=decl; e=exp; SEMICOLON; sop2=simpopt;
+    RPAREN; s=stmt                                
+    { d (A.While(e, A.Seq([s; sop2], A.extract_info_stmt s), i)) }
+
   ;
 
 elseopt : 
