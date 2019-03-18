@@ -27,9 +27,10 @@ let rec print_stmt pre = function
       List.iter (fun s -> print_newline(); print_stmt pre s) sl;
       print_newline();
       print_string (pre^"}"); 
-  | Decl(id,t,_) -> 
+  | Decl(id,t,s,_) -> 
       print_string pre;
-      print_ty t; print_string (" "^id^";")
+      print_ty t; print_string (" "^id^";");
+      print_newline(); print_stmt (pre^"  ") s
 and print_exp = function 
   | Intconst(i,_) -> print_int i
   | True(_) -> print_string "true";
