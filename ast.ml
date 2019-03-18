@@ -23,7 +23,7 @@ type stmt =
   | Nop
   | Exp of exp * info 
   | Seq of stmt list * info 
-  | Decl of ident * ty * info 
+  | Decl of ident * ty * stmt * info  (* succesive statement *)
 and ident = string 
 and exp = 
   | Intconst of int * info
@@ -37,6 +37,12 @@ and unop = Not
 and ty = Int of info | Bool of info
 
   
+
+let cons s i sl = 
+  match sl with 
+  | Seq(sl',_) -> Seq(s::sl',i) 
+  | _ as sl -> Seq([s;sl], i)
+
 let rec simplify = function 
   | If(e,s,sop,i) -> 
     (match sop with 
@@ -60,7 +66,7 @@ let extract_info_stmt = function
   | Nop -> dummyinfo 
   | Exp(_,i) -> i 
   | Seq(_,i) -> i 
-  | Decl(_,_,i) -> i 
+  | Decl(_,_,_,i) -> i 
 and extract_info_exp = function 
   | Intconst(_,i) -> i 
   | True(i) -> i 
