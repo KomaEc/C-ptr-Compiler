@@ -69,7 +69,7 @@ simpopt :
 
 simp : 
   | e=exp                                         { A.Exp(e, A.extract_info_exp e) }
-  | v=lvalue; i=ASSIGN; e=exp                     { A.Assign(v,e,i) }
+  | vi=lvalue; ii=ASSIGN; e=exp                   { let {v;i}=vi in A.Assign(v,e,ii) }
   | i=RETURN; e=exp                               { A.Return(e,i) }
   ;
 
@@ -79,16 +79,16 @@ ty :
   ;
 
 lvalue : 
-  | vi=ID                                        { let {v;i}=vi in v }
-  (*| LPAREN; id=lvalue; RPAREN                     { id }*)
+  | vi=ID                                        { vi }
+  | LPAREN; vi=lvalue; RPAREN                     { vi }
   ;
 
 exp : 
+  | vi=lvalue                                     { let {v;i}=vi in A.Var(v,i) }
   | LPAREN; e=exp; RPAREN                         { e }
-  | vi=NUM                                     { let {v;i}=vi in A.Intconst(v,i) }
+  | vi=NUM                                        { let {v;i}=vi in A.Intconst(v,i) }
   | i=TRUE                                        { A.True(i) }
   | i=FALSE                                       { A.False(i) }
-  | vi=ID                                      { let {v;i}=vi in A.Var(v,i) }
   | i=NOT; e=exp                                  { A.Un(A.Not,e,i) }
   | i=MINUS; e=exp %prec UMINUS                   { A.Bin(A.Intconst(0,dummyinfo),A.Minus,e,i) }
   | e1=exp; op=bop; e2=exp                        { A.Bin(e1,fst op,e2,snd op) } 
