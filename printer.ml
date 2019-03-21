@@ -53,6 +53,7 @@ let rec print_stmt pre = function
       print_string (id^" : "); print_ty t;
       print_string ": {"; 
       print_stmt (pre^"  ") s';
+      print_newline();
       print_string (pre^"}");
       print_stmt pre s
 and print_exp = function 
