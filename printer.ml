@@ -35,14 +35,14 @@ let rec print_stmt pre = function
       print_string pre;
       print_string (id^" : "); print_ty t;
       print_string ";"; print_newline();
-      print_stmt (pre^"  ") s
+      print_stmt pre s
   | Fundefn(id,idl,t,s',s,_) -> 
       print_string pre;
       print_string (id^" : "); print_ty t;
       print_string ": {"; print_newline();
-      print_stmt pre s';
+      print_stmt (pre^"  ") s';
       print_string (pre^"}");
-      print_stmt (pre^"  ") s
+      print_stmt pre s
 and print_exp = function 
   | Intconst(i,_) -> print_int i
   | True(_) -> print_string "true";
