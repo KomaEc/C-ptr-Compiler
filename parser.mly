@@ -1,6 +1,8 @@
 %{
   module A = Ast
   open Support.Error
+
+  exception Grammar_Error of string
 %}
 
 %token <int Support.Error.withinfo> NUM
@@ -10,7 +12,7 @@
 %token <Support.Error.info> INT BOOL
 %token <Support.Error.info> MAIN
 %token <Support.Error.info> RETURN
-%token <Support.Error.info> SEMICOLON
+%token <Support.Error.info> SEMICOLON COMMA COLON
 %token <Support.Error.info> LPAREN RPAREN
 %token <Support.Error.info> LBRACE RBRACE
 %token EOF
@@ -29,31 +31,100 @@
 %nonassoc UMINUS
 %right NOT
 
-%start <Ast.stmt option> prog 
+%start <Ast.stmt list> prog 
 %%
 
-prog : 
-  | EOF                                           { None }
-  | INT; MAIN; LPAREN; RPAREN; s=block EOF        { Some s }
+prog :
+  | EOF                                           { [] }
+  | d=gdecl; l=prog; EOF                          { d l }
   ;
 
+gdecl : 
+  | d=decl                                        { d }     
+  | f=fundecl                                     { f }
+  | f=fundefn                                     { f }
+  ;
+
+fundefn : 
+  | t=ty; id=ID; LPAREN; pl=param_list;
+    RPAREN; defs=block                               
+    { let {v;i}=id in 
+      let (il,tl) = List.split pl in 
+      let t' = A.Arrow(tl,t) in 
+      fun s -> 
+      match s with 
+        [] -> [A.Fundefn(v,il,t',defs,A.Nop,i)]
+      | [s] -> [A.Fundefn(v,il,t',defs,s,i)] 
+      | _ as sl -> [A.Fundefn(v,il,t',defs,A.Seq(sl,i),i)]
+    }
+  ;
+(*
+idopt : 
+  | id=ID                                        { Some id }
+  |                                              { None }
+  ;
+  *)
+rev_param_list : 
+  | t=ty; id=ID
+    { let {v;i}=id in [v,t] }
+  | l=rev_param_list; COMMA;
+    t=ty; id=ID
+    { let {v;i}=id in 
+      (v,t)::l }
+  ;
+
+param_list : 
+  |                                               { [] }
+  | l=rev_param_list                              { List.rev l }
+  ;
+  
+fundecl : 
+  | t=ty; id=ID; LPAREN; pl=param_list;
+    RPAREN; SEMICOLON       
+    { let {v;i}=id in 
+      let (_,tl) = List.split pl in 
+      let t' = A.Arrow(tl,t) in 
+      fun s -> 
+      match s with 
+        [] -> [A.Fundecl(v,t',A.Nop,i)] 
+      | [s] -> [A.Fundecl(v,t',s,i)]
+      | _ as sl -> [A.Fundecl(v,t',A.Seq(sl,i),i)] }
+  ;
+
+rev_ty_list : 
+  | t=ty                                          { [t] }
+  | tl=rev_ty_list; COMMA; t=ty                   { t::tl }
+  ;
+
+ty_list : 
+  |                                               { [] }
+  | tl=rev_ty_list                                { List.rev tl }
+  ;
+
+
 block : 
-  LBRACE; s=stmt_list; RBRACE                   { s }
+  i=LBRACE; s=stmt_list; RBRACE                   { A.Seq(s,i) }
   ;
 stmt_list :
-  | (* nothing *)                                 { A.Seq([],dummyinfo) }
+  | (* nothing *)                                 { [] }
   | d=decl; sl=stmt_list                          { d sl }
-  | s=stmt; sl=stmt_list                          
-    { A.cons s (A.extract_info_stmt s) sl}
+  | s=stmt; sl=stmt_list                          { s::sl }
   ;
 
 decl : 
   | t=ty; id=ID; SEMICOLON;
     { let {v;i}=id in 
-      fun s -> A.Decl(v,t,s,i) }
+      fun s ->
+      match s with 
+        [] -> [A.Vardecl(v,t,A.Nop,i)] 
+      | [s] -> [A.Vardecl(v,t,s,i)] 
+      | _ as sl -> [A.Vardecl(v,t,A.Seq(sl,i),i)]  }
   | t=ty; id=ID; ii=ASSIGN; e=exp; SEMICOLON;
     { let {v;i}=id in 
-      fun s -> A.Decl(v,t,A.cons (A.Assign(v,e,ii)) ii s,i) }
+      fun s ->
+      match s with 
+        [] -> [A.Vardecl(v,t,A.Assign(v,e,ii),i)] 
+      | _ as sl -> [A.Vardecl(v,t,A.Seq((A.Assign(v,e,ii))::sl,i),i)] }
   ;
 
 stmt : 
@@ -118,7 +189,7 @@ control :
     { A.Seq([sop1;A.While(e, A.Seq([s; sop2], A.extract_info_stmt s), i)], A.extract_info_stmt sop1) }
   | i=FOR; LPAREN; d=decl; e=exp; SEMICOLON; sop2=simpopt;
     RPAREN; s=stmt                                
-    { d (A.While(e, A.Seq([s; sop2], A.extract_info_stmt s), i)) }
+    { A.Seq(d [A.While(e, A.Seq([s; sop2], A.extract_info_stmt s), i)],i) }
 
   ;
 
