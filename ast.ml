@@ -23,7 +23,9 @@ type stmt =
   | Nop
   | Exp of exp * info 
   | Seq of stmt list * info 
-  | Decl of ident * ty * stmt * info  (* succesive statement *)
+  | Vardecl of ident * ty * stmt * info  (* succesive statement *)
+  | Fundecl of ident * ty * stmt * info 
+  | Fundefn of ident * ident list * ty * stmt * stmt * info
 and ident = string 
 and exp = 
   | Intconst of int * info
@@ -34,7 +36,8 @@ and exp =
 and binop = Plus | Minus | Times | Div | And | Or
   | Lt | Gt | Eq
 and unop = Not
-and ty = Int of info | Bool of info
+and ty = Int of info | Bool of info 
+       | Arrow of ty list * ty
 
   
 
@@ -49,6 +52,8 @@ let rec simplify = function
      | Some s' -> If(e, simplify s, Some (simplify s'),i)
      | None -> If(e, simplify s, sop, i))
   | While(e,s,i) -> While(e, simplify s,  i) 
+  | Seq([], i) -> Nop 
+  | Seq([s], i) -> s
   | Seq(sl, i) -> Seq(simplify_seq sl, i)
   | _ as s -> s 
 and simplify_seq sl = 
@@ -66,7 +71,7 @@ let extract_info_stmt = function
   | Nop -> dummyinfo 
   | Exp(_,i) -> i 
   | Seq(_,i) -> i 
-  | Decl(_,_,_,i) -> i 
+  | Vardecl(_,_,_,i) -> i 
 and extract_info_exp = function 
   | Intconst(_,i) -> i 
   | True(i) -> i 
