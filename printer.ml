@@ -2,44 +2,56 @@ open Ast
 
 let rec print_stmt pre = function 
   | Assign(id,e,_) -> 
+      print_newline();
       print_string pre;
       print_string (id ^ " = "); print_exp e; print_string ";"
   | If(e,s,sop,_) -> 
+      print_newline();
       print_string pre;
-      print_string "if ("; print_exp e; print_endline ")"; 
+      print_string "if ("; print_exp e; print_string ") {"; 
       print_stmt (pre^"  ") s;
       print_newline();
+      print_string (pre^"}");
       (match sop with
-        | Some s ->  print_endline (pre^"else"); print_stmt (pre^"  ") s 
+        | Some s ->  print_newline();
+                     print_string (pre^"else {"); 
+                     print_stmt (pre^"  ") s; 
+                     print_newline();
+                     print_string (pre^"}")
         | None -> ())
   | While(e,s,_) -> 
+      print_newline();
       print_string (pre^"while (");
-      print_exp e; print_endline ")";
-      print_stmt (pre^"  ") s
+      print_exp e; print_string ") {";
+      print_stmt (pre^"  ") s;
+      print_newline();
+      print_string (pre^"}")
   | Return(e,_) ->
+      print_newline();
       print_string (pre^"return ");
       print_exp e; print_string ";"
   | Nop -> () 
   | Exp(e,_) -> 
+      print_newline();
       print_string pre; print_exp e; print_string ";"
   | Seq(sl,_) -> 
-      print_string (pre^"{");
-      List.iter (fun s -> print_newline(); print_stmt pre s) sl;
-      print_newline();
-      print_string (pre^"}"); 
+      List.iter (fun s -> print_stmt pre s) sl;
   | Vardecl(id,t,s,_) -> 
+      print_newline();
       print_string pre;
       print_ty t; print_string (" "^id^";");
-      print_newline(); print_stmt (pre^"  ") s 
+      print_stmt pre s 
   | Fundecl(id,t,s,_) -> 
+      print_newline();
       print_string pre;
       print_string (id^" : "); print_ty t;
-      print_string ";"; print_newline();
+      print_string ";"; 
       print_stmt pre s
   | Fundefn(id,idl,t,s',s,_) -> 
+      print_newline();
       print_string pre;
       print_string (id^" : "); print_ty t;
-      print_string ": {"; print_newline();
+      print_string ": {"; 
       print_stmt (pre^"  ") s';
       print_string (pre^"}");
       print_stmt pre s
