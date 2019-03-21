@@ -22,11 +22,12 @@
     "if", (fun i -> IF i);
     "int", (fun i -> INT i);
     "bool", (fun i -> BOOL i);
-    "main", (fun i -> MAIN i);
     "return", (fun i -> RETURN i);
     "else", (fun i -> ELSE i);
 
     (* symbols *)
+    ":", (fun i -> COLON i);
+    ",", (fun i -> COMMA i);
     ";", (fun i -> SEMICOLON i);
     "(", (fun i -> LPAREN i);
     ")", (fun i -> RPAREN i);
@@ -78,6 +79,6 @@ rule read =
   | "+" | "-" | "*" | "/" | "<" | ">" | "=" 
   | "<=" | ">=" | "==" | "!=" | "&&" | "||" | "!" { createId (Lexing.lexeme lexbuf) (info lexbuf) }
 
-  | "(" | ")" | "{" | "}" | ";" { createId (Lexing.lexeme lexbuf) (info lexbuf) }
+  | "(" | ")" | "{" | "}" | ";" | "," { createId (Lexing.lexeme lexbuf) (info lexbuf) }
   | eof { EOF }
   | _ { raise (Syntax_Error (Lexing.lexeme lexbuf)) }
