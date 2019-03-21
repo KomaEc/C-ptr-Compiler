@@ -15,7 +15,7 @@ let parse_with_error lexbuf =
   try Parser.prog Lexer.read lexbuf with 
   | Lexer.Syntax_Error msg -> 
     fprintf stderr "%a: %s" print_position lexbuf msg;
-    None
+    exit(0)
   | Parser.Error -> 
     fprintf stderr "%a" print_position lexbuf;
     exit(0)
@@ -30,9 +30,11 @@ let () =
           let inx = open_in fname in 
           let lexbuf = from_channel inx in 
           lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = fname};
-          (match parse_with_error lexbuf with 
+          (*(match parse_with_error lexbuf with 
           | Some s -> print_stmt "" (simplify s) 
-          | None -> ());
+          | None -> ());*)
+          (*print_stmt "" (Seq(parse_with_error lexbuf, Support.Error.dummyinfo));*)
+          print_stmt "" (simplify (parse_with_error lexbuf));
           close_in inx
           )
   | _ -> fprintf stderr "Too many arguments! Expected 1\n"; exit(0)
