@@ -31,11 +31,11 @@
 %nonassoc UMINUS
 %right NOT
 
-%start <Ast.stmt list> prog 
+%start <Ast.stmt> prog 
 %%
 
 prog :
-  | EOF                                           { [] }
+  | EOF                                           { A.Nop }
   | d=gdecl; l=prog; EOF                          { d l }
   ;
 
@@ -52,10 +52,7 @@ fundefn :
       let (il,tl) = List.split pl in 
       let t' = A.Arrow(tl,t) in 
       fun s -> 
-      match s with 
-        [] -> [A.Fundefn(v,il,t',defs,A.Nop,i)]
-      | [s] -> [A.Fundefn(v,il,t',defs,s,i)] 
-      | _ as sl -> [A.Fundefn(v,il,t',defs,A.Seq(sl,i),i)]
+      A.Fundefn(v,il,t',defs,s,i)
     }
   ;
 (*
@@ -85,10 +82,7 @@ fundecl :
       let (_,tl) = List.split pl in 
       let t' = A.Arrow(tl,t) in 
       fun s -> 
-      match s with 
-        [] -> [A.Fundecl(v,t',A.Nop,i)] 
-      | [s] -> [A.Fundecl(v,t',s,i)]
-      | _ as sl -> [A.Fundecl(v,t',A.Seq(sl,i),i)] }
+      A.Fundecl(v,t',s,i) }
   ;
 
 rev_ty_list : 
@@ -103,28 +97,26 @@ ty_list :
 
 
 block : 
-  i=LBRACE; s=stmt_list; RBRACE                   { A.Seq(s,i) }
+  i=LBRACE; s=stmt_list; RBRACE                   { s }
   ;
 stmt_list :
-  | (* nothing *)                                 { [] }
+  | (* nothing *)                                 { A.Nop }
   | d=decl; sl=stmt_list                          { d sl }
-  | s=stmt; sl=stmt_list                          { s::sl }
+  | s=stmt; sl=stmt_list                          
+    { match sl with 
+      | A.Seq(sl',_) -> A.Seq(s::sl', A.extract_info_stmt s) 
+      | _ as s' -> A.Seq([s;s'], A.extract_info_stmt s) }
   ;
 
 decl : 
   | t=ty; id=ID; SEMICOLON;
     { let {v;i}=id in 
       fun s ->
-      match s with 
-        [] -> [A.Vardecl(v,t,A.Nop,i)] 
-      | [s] -> [A.Vardecl(v,t,s,i)] 
-      | _ as sl -> [A.Vardecl(v,t,A.Seq(sl,i),i)]  }
+      A.Vardecl(v,t,s,i)  }
   | t=ty; id=ID; ii=ASSIGN; e=exp; SEMICOLON;
     { let {v;i}=id in 
       fun s ->
-      match s with 
-        [] -> [A.Vardecl(v,t,A.Assign(v,e,ii),i)] 
-      | _ as sl -> [A.Vardecl(v,t,A.Seq((A.Assign(v,e,ii))::sl,i),i)] }
+      A.Vardecl(v,t,A.Seq([A.Assign(v,e,ii);s],i),i) }
   ;
 
 stmt : 
@@ -189,7 +181,7 @@ control :
     { A.Seq([sop1;A.While(e, A.Seq([s; sop2], A.extract_info_stmt s), i)], A.extract_info_stmt sop1) }
   | i=FOR; LPAREN; d=decl; e=exp; SEMICOLON; sop2=simpopt;
     RPAREN; s=stmt                                
-    { A.Seq(d [A.While(e, A.Seq([s; sop2], A.extract_info_stmt s), i)],i) }
+    { d (A.While(e, A.Seq([s; sop2], A.extract_info_stmt s), i)) }
 
   ;
 
