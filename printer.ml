@@ -27,10 +27,22 @@ let rec print_stmt pre = function
       List.iter (fun s -> print_newline(); print_stmt pre s) sl;
       print_newline();
       print_string (pre^"}"); 
-  | Decl(id,t,s,_) -> 
+  | Vardecl(id,t,s,_) -> 
       print_string pre;
       print_ty t; print_string (" "^id^";");
-      print_newline(); print_stmt (pre^"  ") s
+      print_newline(); print_stmt (pre^"  ") s 
+  | Fundecl(id,t,s,_) -> 
+      print_string pre;
+      print_string (id^" : "); print_ty t;
+      print_string ";"; print_newline();
+      print_stmt (pre^"  ") s
+  | Fundefn(id,idl,t,s',s,_) -> 
+      print_string pre;
+      print_string (id^" : "); print_ty t;
+      print_string ": {"; print_newline();
+      print_stmt pre s';
+      print_string (pre^"}");
+      print_stmt (pre^"  ") s
 and print_exp = function 
   | Intconst(i,_) -> print_int i
   | True(_) -> print_string "true";
@@ -57,7 +69,16 @@ and print_exp = function
       print_exp_paren e2;
 and print_ty = function 
   | Int(_) -> print_string "int"
-  | Bool(_) -> print_string "bool"
+  | Bool(_) -> print_string "bool" 
+  | Arrow(tl,t) -> 
+    print_string "(";
+    print_ty_list tl;
+    print_string " -> ";
+    print_ty t
+and print_ty_list = function 
+  | [] -> print_string ")"
+  | [t] -> print_ty t; print_string ")" 
+  | t::tl -> print_ty t; print_string ", "; print_ty_list tl
 and print_exp_paren = function 
   | Bin(_) as e ->  print_string "("; print_exp e; print_string")";
   | _ as e -> print_exp e;
