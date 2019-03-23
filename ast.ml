@@ -26,7 +26,7 @@ type stmt =
   | Vardecl of ident * ty * stmt * info  (* succesive statement *)
   | Fundecl of ident * ty * stmt * info 
   | Fundefn of ident * ident list * ty * stmt * stmt * info
-and ident = string 
+and ident = Symbol.t 
 and exp = 
   | Intconst of int * info
   | True of info | False of info
@@ -37,9 +37,7 @@ and binop = Plus | Minus | Times | Div | And | Or
   | Lt | Gt | Eq
 and unop = Not
 and ty = Int of info | Bool of info 
-       | Arrow of ty list * ty
-
-  
+       | Arrow of ty list * ty  
 
 let cons s i sl = 
   match sl with 
@@ -72,6 +70,8 @@ let extract_info_stmt = function
   | Exp(_,i) -> i 
   | Seq(_,i) -> i 
   | Vardecl(_,_,_,i) -> i 
+  | Fundecl(_,_,_,i) -> i 
+  | Fundefn(_,_,_,_,_,i) -> i
 and extract_info_exp = function 
   | Intconst(_,i) -> i 
   | True(i) -> i 
@@ -82,3 +82,4 @@ and extract_info_exp = function
 and extract_info_type = function 
   | Int(i) -> i 
   | Bool(i) -> i
+  | Arrow(_,_) -> dummyinfo
