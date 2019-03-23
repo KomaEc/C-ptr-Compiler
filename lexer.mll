@@ -1,7 +1,6 @@
 {
   open Lexing
   open Parser
-  open Symbol
   open Support
   open Support.Error
 
@@ -55,7 +54,7 @@
     List.iter (fun (str, tk) -> Hashtbl.add tbl str tk) reserved_word
   let createId str i = 
     try Hashtbl.find tbl str i
-    with _ -> ID({v=str;i})
+    with _ -> ID({v=Symbol.symbol str;i})
   
   let info lexbuf = 
     let pos = lexbuf.lex_curr_p in 
