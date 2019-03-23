@@ -1,12 +1,13 @@
 %{
   module A = Ast
   open Support.Error
+  module S = Symbol
 
   exception Grammar_Error of string
 %}
 
 %token <int Support.Error.withinfo> NUM
-%token <string Support.Error.withinfo> ID 
+%token <Symbol.t Support.Error.withinfo> ID 
 %token <Support.Error.info> TRUE FALSE
 %token <Support.Error.info> FOR IF ELSE
 %token <Support.Error.info> INT BOOL
@@ -78,7 +79,7 @@ param_list :
 fundecl : 
   | t=ty; id=ID; LPAREN; pl=param_list;
     RPAREN; SEMICOLON       
-    { let {v;i}=id in 
+    { let {v;i}=id in  
       let (_,tl) = List.split pl in 
       let t' = A.Arrow(tl,t) in 
       fun s -> 
