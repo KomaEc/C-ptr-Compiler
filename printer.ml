@@ -1,10 +1,11 @@
 open Ast 
+open Symbol
 
 let rec print_stmt pre = function 
   | Assign(id,e,_) -> 
       print_newline();
       print_string pre;
-      print_string (id ^ " = "); print_exp e; print_string ";"
+      print_string (name id ^ " = "); print_exp e; print_string ";"
   | If(e,s,sop,_) -> 
       print_newline();
       print_string pre;
@@ -39,18 +40,18 @@ let rec print_stmt pre = function
   | Vardecl(id,t,s,_) -> 
       print_newline();
       print_string pre;
-      print_ty t; print_string (" "^id^";");
+      print_ty t; print_string (" "^(name id)^";");
       print_stmt pre s 
   | Fundecl(id,t,s,_) -> 
       print_newline();
       print_string pre;
-      print_string (id^" : "); print_ty t;
+      print_string ((name id)^" : "); print_ty t;
       print_string ";"; 
       print_stmt pre s
   | Fundefn(id,idl,t,s',s,_) -> 
       print_newline();
       print_string pre;
-      print_string (id^" : "); print_ty t;
+      print_string ((name id)^" : "); print_ty t;
       print_string ": {"; 
       print_stmt (pre^"  ") s';
       print_newline();
@@ -60,7 +61,7 @@ and print_exp = function
   | Intconst(i,_) -> print_int i
   | True(_) -> print_string "true";
   | False(_) -> print_string "false";
-  | Var(id,_) -> print_string id;
+  | Var(id,_) -> print_string (name id);
   | Un(op, exp,_) ->
       (match op with 
       | Not -> (match exp with 
