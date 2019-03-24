@@ -4,10 +4,12 @@ open Printf
 open Lexing
 open Lexer
 open Printer
+open Sement
+open Support.Error
 
 let print_position outx lexbuf = 
   let pos = lexbuf.lex_curr_p in 
-  fprintf outx "%s : lines %d : offset %d"
+  fprintf outx "%s : lines %d : offset %d\n"
   pos.pos_fname pos.pos_lnum (pos.pos_cnum - pos.pos_bol + 1)
 ;;
 
@@ -20,6 +22,15 @@ let parse_with_error lexbuf =
     fprintf stderr "%a" print_position lexbuf;
     exit(0)
 ;;
+
+let check_with_error s = 
+  try check s with 
+  | Duplicated_Definition i -> 
+    fprintf stderr "%a %s" printInfo i "Duplicated definition\n"
+  | Lack_Definition i -> 
+    fprintf stderr "%a %s" printInfo i "LackDefinition\n"
+  | No_Initialization i -> 
+    fprintf stderr "%a %s" printInfo i "No Initialization\n"
 
 let print_helper = "What do you need?\n"
 
@@ -34,7 +45,10 @@ let () =
           | Some s -> print_stmt "" (simplify s) 
           | None -> ());*)
           (*print_stmt "" (Seq(parse_with_error lexbuf, Support.Error.dummyinfo));*)
-          print_stmt "" (simplify (parse_with_error lexbuf));
+          let s = simplify (parse_with_error lexbuf) in 
+          print_stmt "" s;
+          print_newline();
+          check_with_error s;
           close_in inx
           )
   | _ -> fprintf stderr "Too many arguments! Expected 1\n"; exit(0)
