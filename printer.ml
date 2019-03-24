@@ -94,5 +94,5 @@ and print_ty_list = function
   | [t] -> print_ty t; print_string ")" 
   | t::tl -> print_ty t; print_string ", "; print_ty_list tl
 and print_exp_paren = function 
-  | Bin(_) as e ->  print_string "("; print_exp e; print_string")";
-  | _ as e -> print_exp e;
+  | Bin(_) as e ->  print_string "("; print_exp e; print_string")"
+  | _ as e -> print_exp e
