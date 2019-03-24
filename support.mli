@@ -15,12 +15,14 @@ module Error : sig
 
   (* Create file position info: filename lineno column *)
   val createInfo : string -> int -> int -> info 
-  val printInfo : info -> unit 
+  val printInfo : out_channel -> info -> unit 
 
   (* A convenient datatype for a "value with file info."  Used in
      the lexer and parser. *)
   type 'a withinfo = { i : info; v : 'a }
 
+
+(*
   (* Print an error message and fail.  The printing function is called
      in a context where the formatter is processing an hvbox.  Insert
      calls to Format.print_space to print a space or, if necessary,
@@ -37,4 +39,6 @@ module Error : sig
   val warning : string -> unit
   val warningAt : info -> string -> unit
 
+
+*)
   end
