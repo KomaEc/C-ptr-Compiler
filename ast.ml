@@ -11,7 +11,6 @@ and exp =
   | Const of const 
   | Var of ident 
   | Bin of exp * binop * exp 
-
 *)
 open Support.Error
 
@@ -53,6 +52,9 @@ let rec simplify = function
   | Seq([], i) -> Nop 
   | Seq([s], i) -> s
   | Seq(sl, i) -> Seq(simplify_seq sl, i)
+  | Vardecl(id,t,s,i) -> Vardecl(id,t,simplify s,i) 
+  | Fundecl(id,t,s,i) -> Fundecl(id,t,simplify s,i)
+  | Fundefn(id,idl,t,s',s,i) -> Fundefn(id,idl,t,simplify s',simplify s,i)
   | _ as s -> s 
 and simplify_seq sl = 
   List.fold_right 
