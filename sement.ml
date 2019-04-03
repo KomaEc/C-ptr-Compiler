@@ -10,9 +10,11 @@ exception Ill_Typed of info
 exception Arity_Mismatched of info
 exception Fundec_Mismatched of info
 exception Not_Function of info
+exception No_Fieldname of info
+exception Not_Struct of info
 
 type def_bind = 
-  | Vardef | Fundef of bool ref
+  | Vardef | Fundef of bool ref | Strucdef of bool ref * (Symbol.t, Ast.ty) Hashtbl.t
 
 let rec check_def def_env = function 
   | If(e,s,sop,_) -> 
@@ -35,7 +37,8 @@ let rec check_def def_env = function
   | Fundefn(id,idl,_,s',s,i) -> 
     (try let d = lookup id def_env in 
          match d with 
-         | Vardef -> assert false 
+         | Vardef -> raise (Duplicated_Definition i) 
+         | Strucdef(_) -> raise (Duplicated_Definition i)
          | Fundef br -> if !br then raise (Duplicated_Definition i)
                         else br := true;
                              check_def 
@@ -47,6 +50,31 @@ let rec check_def def_env = function
   | Exp(e,_) -> check_def_exp def_env e
   | Return(e,_) -> check_def_exp def_env e
   | Assign(_,e,_) -> check_def_exp def_env e 
+  | Structdecl(id,s,i) -> 
+    (try check_id_def id i def_env
+    with Not_found -> 
+      let br = ref false in 
+      check_def (enter id (Strucdef(br, Hashtbl.create 20)) def_env) s;
+      if !br then () else raise (Lack_Definition i))
+  | Structdefn(id,fl,s,i) -> 
+    (try let d = lookup id def_env in 
+         match d with 
+         | Vardef -> raise (Duplicated_Definition i) 
+         | Fundef(_) -> raise (Duplicated_Definition i)
+         | Strucdef (br,tbl) -> if !br then raise (Duplicated_Definition i)
+                        else br := true;
+                             List.iter (fun (id,t) ->
+                                        (match t with 
+                                        | NameTy(tid) -> (try ignore (lookup tid def_env) with Not_found -> raise (Lack_Definition i))
+                                        | _ -> ()); Hashtbl.add tbl id t)
+                             fl; check_def def_env s
+    with Not_found -> 
+      let tbl = Hashtbl.create 20 in 
+      List.iter (fun (id,t) -> 
+                (match t with
+                | NameTy(tid) -> (try ignore (lookup tid def_env) with Not_found -> raise(Lack_Definition i))
+                | _ -> ()); Hashtbl.add tbl id t)
+                fl; check_def (enter id (Strucdef(ref true, tbl)) def_env) s) 
   | Nop -> ()
 and check_id_def id i def_env =
   let _ = lookup id def_env in raise (Duplicated_Definition i)
@@ -54,13 +82,35 @@ and check_id_isdef id i def_env =
   (try let _ = lookup id def_env in () 
   with Not_found -> raise (Lack_Definition i))
 and check_def_exp def_env = function 
-  | Var(id,i) -> check_id_isdef id i def_env 
+  | Var(v) -> check_def_var_exp def_env (fun _ -> ()) v
   | Bin(e1,_,e2,_) -> check_def_exp def_env e1; check_def_exp def_env e2
   | Un(_,e,_) -> check_def_exp def_env e
   | App(id,el,i) -> check_id_isdef id i def_env;
     List.iter (check_def_exp def_env) el
+  | ArrayAlloc(t,e,i) -> 
+    (match t with 
+    | NameTy(id) -> check_id_isdef id i def_env; check_def_exp def_env e 
+    | _ -> ())
+  | Alloc(t,i) -> 
+    (match t with 
+    | NameTy(id) -> check_id_isdef id i def_env 
+    | _ -> ()) 
+  | Intconst(_) | True(_) | False(_)
+  | Nil -> ()
+and check_def_var_exp def_env k = function (* Not Correct! Must combine with Type Check *)
+  | SimpVar(id,i) -> k id; check_id_isdef id i def_env 
+  | FieldVar(v,fname,i) -> () (* TODO *);
+    check_def_var_exp def_env 
+    (fun id -> 
+    try (match lookup id def_env with 
+        | Strucdef(_,tbl) -> (match Hashtbl.find_opt tbl id with 
+                             | Some t -> () (* Enclosing Continuation *) 
+                             | None -> raise (No_Fieldname i))
+        | _ -> raise (Not_Struct i))
+    with Not_found -> raise (No_Fieldname i)) v
   | _ -> ()
 
+(* TODO: add init check for struct *)
 let rec check_init = function 
   | Assign(_) | Nop | Exp(_) | Return(_) -> ()
   | If(_,s,sop,_) -> check_init s;
@@ -72,6 +122,8 @@ let rec check_init = function
     if live id s then raise (No_Initialization i) else () 
   | Fundecl(_,_,s,_) -> check_init s 
   | Fundefn(_,_,_,s',s,_) -> check_init s'; check_init s
+  | Structdecl(_,s,_) -> check_init s 
+  | Structdefn(_,_,s,_) -> check_init s
 and live id = function 
   | Assign(_,e,_) -> use id e 
   | If(e,s,sop,_) ->
@@ -86,12 +138,14 @@ and live id = function
   | Vardecl(id',_,s,_) -> live id s && not (id = id') 
   | Fundecl(_,_,s,_) -> live id s 
   | Fundefn(_,_,_,_,s,_) -> live id s
+  | Structdecl(_,s,_) -> live id s 
+  | Structdefn(_,_,s,_) -> live id s 
 and live_seq id = function
   | [] -> false 
   | [s] -> live id s 
   | s::sl -> live id s || not (def id s) && live_seq id sl
 and use id = function 
-  | Var(id',_) -> id = id' 
+  | Var(SimpVar(id',_)) -> id = id' 
   | Bin(e1,_,e2,_) -> use id e1 || use id e2 
   | Un(_,e,_) -> use id e 
   | App(_,el,_) -> List.fold_left (fun acc e -> acc || use id e) false el
@@ -102,7 +156,7 @@ and def id = function
   | Return(_) -> true 
   | Seq(sl,_) -> 
     List.fold_left (fun acc s -> acc || def id s) false sl 
-  | Assign(id',_,_) -> id = id'
+  | Assign(SimpVar(id',_),_,_) -> id = id'
   | Vardecl(_,_,s,_) -> def id s 
   | Fundecl(_,_,s,_) -> def id s 
   | Fundefn(_,_,_,_,s,_) -> def id s 
@@ -110,7 +164,7 @@ and def id = function
 
 
 let rec check_type ctx = function
-  | Assign(id,e,i) ->
+  | Assign(SimpVar(id,_),e,i) ->
     let ty = lookup id ctx in 
     let ty' = check_type_exp ctx e in 
     if not (ty = ty') then raise (Ill_Typed i) else () 
@@ -143,7 +197,7 @@ let rec check_type ctx = function
 and check_type_exp ctx = function 
   | Intconst(_) -> Int 
   | True(_) | False(_) -> Bool 
-  | Var(id,_) -> lookup id ctx
+  | Var(SimpVar(id,_)) -> lookup id ctx
   | Bin(e1,binop,e2,i) ->
     (match binop with 
     | Plus | Minus | Times | Div -> 
