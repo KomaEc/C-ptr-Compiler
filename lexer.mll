@@ -19,10 +19,14 @@
     "false", (fun i -> FALSE i);
     "for", (fun i -> FOR i);
     "if", (fun i -> IF i);
-    "int", (fun i -> INT);
-    "bool", (fun i -> BOOL);
+    "int", (fun _ -> INT);
+    "bool", (fun _ -> BOOL);
+    "void", (fun _ -> VOID);
     "return", (fun i -> RETURN i);
     "else", (fun i -> ELSE i);
+    "typedef", (fun _ -> TYPEDEF);
+    "struct", (fun _ -> STRUCT);
+    "new", (fun i -> NEW i);
 
     (* symbols *)
     ":", (fun i -> COLON i);
@@ -32,6 +36,8 @@
     ")", (fun i -> RPAREN i);
     "{", (fun i -> LBRACE i);
     "}", (fun i -> RBRACE i);
+    "[", (fun i -> LBRACK i);
+    "]", (fun i -> RBRACK i);
     "+", (fun i -> PLUS i);
     "-", (fun i -> MINUS i);
     "*", (fun i -> TIMES i);
@@ -46,6 +52,7 @@
     "<=", (fun i -> LEQ i);
     ">=", (fun i -> GEQ i);
     "==", (fun i -> EQ i);
+    ".", (fun i -> DOT i)
   ]
 
   (* todo: use Symbol module *)
@@ -78,6 +85,6 @@ rule read =
   | "+" | "-" | "*" | "/" | "<" | ">" | "=" 
   | "<=" | ">=" | "==" | "!=" | "&&" | "||" | "!" { createId (Lexing.lexeme lexbuf) (info lexbuf) }
 
-  | "(" | ")" | "{" | "}" | ";" | "," { createId (Lexing.lexeme lexbuf) (info lexbuf) }
+  | "(" | ")" | "{" | "}" | ";" | "," | "." | "[" | "]" { createId (Lexing.lexeme lexbuf) (info lexbuf) }
   | eof { EOF }
   | _ { raise (Syntax_Error (Lexing.lexeme lexbuf)) }
