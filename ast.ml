@@ -15,7 +15,7 @@ and exp =
 open Support.Error
 
 type stmt = 
-  | Assign of ident * exp * info
+  | Assign of var * exp * info
   | If of exp * stmt * stmt option * info
   | While of exp * stmt * info 
   | Return of exp * info 
@@ -25,19 +25,31 @@ type stmt =
   | Vardecl of ident * ty * stmt * info  (* succesive statement *)
   | Fundecl of ident * ty * stmt * info 
   | Fundefn of ident * ident list * ty * stmt * stmt * info
+  | Structdecl of ident * stmt * info 
+  | Structdefn of ident * (ident * ty) list * stmt * info
 and ident = Symbol.t 
 and exp = 
   | Intconst of int * info
   | True of info | False of info
-  | Var of ident * info 
+  | Var of var
   | Bin of exp * binop * exp * info
   | Un of unop * exp * info
   | App of ident * exp list * info
+  | ArrayAlloc of ty * exp * info
+  | Alloc of ty * info
+  | Nil
+and var = 
+  | SimpVar of ident * info 
+  | FieldVar of var * ident * info 
+  | SubscriptVar of var * exp * info
 and binop = Plus | Minus | Times | Div | And | Or
   | Lt | Gt | Eq
 and unop = Not
-and ty = Int | Bool
+and ty = Int | Bool | Void
        | Arrow of ty list * ty  
+       | ArrayTy of ty
+       | NameTy of ident
+
 
 let cons s i sl = 
   match sl with 
@@ -64,7 +76,7 @@ and simplify_seq sl =
     | Seq(sl', _) -> sl' @ acc 
     | _ as s' -> s' :: acc) sl []
 
-let extract_info_stmt = function 
+let rec extract_info_stmt = function 
   | Assign(_,_,i) -> i 
   | If(_,_,_,i) -> i 
   | While(_,_,i) -> i 
@@ -75,11 +87,20 @@ let extract_info_stmt = function
   | Vardecl(_,_,_,i) -> i 
   | Fundecl(_,_,_,i) -> i 
   | Fundefn(_,_,_,_,_,i) -> i
+  | Structdecl(_,_,i) -> i 
+  | Structdefn(_,_,_,i) -> i
+and extract_info_var = function 
+  | SimpVar(_,i) -> i 
+  | FieldVar(_,_,i) -> i 
+  | SubscriptVar(_,_,i) -> i
 and extract_info_exp = function 
   | Intconst(_,i) -> i 
   | True(i) -> i 
   | False(i) -> i 
-  | Var(_,i) -> i 
+  | Var(v) -> extract_info_var v
   | Bin(_,_,_,i) -> i 
   | Un(_,_,i) -> i 
   | App(_,_,i) -> i
+  | ArrayAlloc(_,_,i) -> i 
+  | Alloc(_,i) -> i
+  | Nil -> dummyinfo
