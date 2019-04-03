@@ -10,17 +10,22 @@
 %token <Symbol.t Support.Error.withinfo> ID 
 %token <Support.Error.info> TRUE FALSE
 %token <Support.Error.info> FOR IF ELSE
-%token INT BOOL
+%token INT BOOL VOID
 %token <Support.Error.info> MAIN
 %token <Support.Error.info> RETURN
 %token <Support.Error.info> SEMICOLON COMMA COLON
 %token <Support.Error.info> LPAREN RPAREN
 %token <Support.Error.info> LBRACE RBRACE
+%token <Support.Error.info> LBRACK RBRACK
+%token <Support.Error.info> DOT
 %token EOF
 %token <Support.Error.info> PLUS MINUS TIMES DIV
 %token <Support.Error.info> AND OR
 %token <Support.Error.info> NOT
 %token <Support.Error.info> ASSIGN NEQ LT GT LEQ GEQ EQ
+%token TYPEDEF
+%token STRUCT
+%token <Support.Error.info> NEW
 
 %right ASSIGN
 %left OR
@@ -44,6 +49,21 @@ gdecl :
   | d=decl                                        { d }     
   | f=fundecl                                     { f }
   | f=fundefn                                     { f }
+  | s=structdecl                                  { s }
+  | s=strcutdefn                                  { s }
+  ;
+
+structdecl : 
+  | STRUCT; vi=ID; SEMICOLON                      
+    { let {v;i}=vi in 
+      fun s -> A.Structdecl(v,s,i) }
+  ;
+
+strcutdefn : 
+  | STRUCT; vi=ID; LBRACE; 
+    pl=field_list; RBRACE; SEMICOLON
+    { let {v;i}=vi in 
+      fun s -> A.Structdefn(v,pl,s,i) }
   ;
 
 fundefn : 
@@ -56,12 +76,7 @@ fundefn :
       A.Fundefn(v,il,t',defs,s,i)
     }
   ;
-(*
-idopt : 
-  | id=ID                                        { Some id }
-  |                                              { None }
-  ;
-  *)
+
 rev_param_list : 
   | t=ty; id=ID
     { let {v;i}=id in [v,t] }
@@ -74,6 +89,19 @@ rev_param_list :
 param_list : 
   |                                               { [] }
   | l=rev_param_list                              { List.rev l }
+  ;
+
+rev_field_list : 
+  | t=ty; id=ID; SEMICOLON
+    { let {v;i}=id in [v,t] }
+  | l=rev_field_list; t=ty; id=ID; SEMICOLON 
+    { let {v;i}=id in 
+      (v,t)::l }
+  ;
+
+field_list : 
+  |                                                { [] }
+  | l=rev_field_list                               { List.rev l}
   ;
   
 fundecl : 
@@ -106,7 +134,7 @@ decl :
   | t=ty; id=ID; ii=ASSIGN; e=exp; SEMICOLON;
     { let {v;i}=id in 
       fun s ->
-      A.Vardecl(v,t,A.Seq([A.Assign(v,e,ii);s],i),i) }
+      A.Vardecl(v,t,A.Seq([A.Assign(A.SimpVar(v,i),e,ii);s],i),i) }
   ;
 
 stmt : 
@@ -122,23 +150,75 @@ simpopt :
 
 simp : 
   | e=exp                                         { A.Exp(e, A.extract_info_exp e) }
-  | vi=lvalue; ii=ASSIGN; e=exp                   { let {v;i}=vi in A.Assign(v,e,ii) }
+  | l=lvalue; ii=ASSIGN; e=exp                    { A.Assign(l,e,ii) }
   | i=RETURN; e=exp                               { A.Return(e,i) }
+  | i=RETURN;                                     { A.Return(A.Nil,i) }
   ;
+
+id_with_lbrack:
+  | vi=ID; LBRACK                                 { vi }
+  ;
+
 
 ty : 
-  | i=INT                                         { A.Int }
-  | i=BOOL                                        { A.Bool }
+  | t=simpty                                       { t }
+  | t=compty                                    { t }
+  ;
+simpty:
+  | t=varty                                       { t }
+  | t=primitivety                                 { t }
+  ;
+varty:
+  | id=ID                                         { let {v;i}=id in A.NameTy(v) }
   ;
 
+primitivety:
+  | i=INT                                         { A.Int }
+  | i=BOOL                                        { A.Bool }
+  | i=VOID                                        { A.Void }
+  ;
+
+compty : 
+  | t=primitivety; LBRACK; RBRACK                 { A.ArrayTy(t) }
+  | vi=id_with_lbrack; RBRACK                     { let {v;i}=vi in A.ArrayTy(A.NameTy(v)) }
+  ;
+(*
 lvalue : 
-  | vi=ID                                        { vi }
-  | LPAREN; vi=lvalue; RPAREN                     { vi }
+  | vi=ID                                         { let {v;i}=vi in A.SimpVar(v,i) }
+  | LPAREN; l=lvalue; RPAREN                      { l }
+  | l=lvalue; LBRACK; e=exp; RBRACK               { A.SubscriptVar(l,e,A.extract_info_var l) }
+  | l=lvalue; DOT; id=ID                          { let {v;i}=id in A.FieldVar(l,v,i) }
+  ;
+  *)
+
+lvalue : 
+  | l=simplvalue                                    { l }
+  | l=complvalue                                    { l }
+  ;
+
+simplvalue:
+  | vi=ID                                         { let {v;i}=vi in A.SimpVar(v,i) }
+  ;
+complvalue:
+  | LPAREN; l=complvalue; RPAREN                  { l }
+  | LPAREN; l=simplvalue; RPAREN                  { l }
+  | l=complvalue; LBRACK; e=exp; RBRACK           { A.SubscriptVar(l,e,A.extract_info_var l) }
+  | vi=id_with_lbrack; e=exp; RBRACK              { let {v;i}=vi in A.SubscriptVar(A.SimpVar(v,i),e,i) }
+  | l=lvalue; DOT; id=ID                          { let {v;i}=id in A.FieldVar(l,v,i) }
   ;
 
 exp : 
-  | vi=lvalue                                     { let {v;i}=vi in A.Var(v,i) }
-  | LPAREN; e=exp; RPAREN                         { e }
+  | e=simpexp                                     { e }
+  | e=compexp                                     { e }
+  ;
+
+simpexp : 
+  | l=lvalue                                      { A.Var(l) }
+  ;
+
+
+compexp : 
+  | LPAREN; e=compexp; RPAREN                     { e }
   | vi=NUM                                        { let {v;i}=vi in A.Intconst(v,i) }
   | i=TRUE                                        { A.True(i) }
   | i=FALSE                                       { A.False(i) }
@@ -149,6 +229,13 @@ exp :
   | e1=exp; i=GEQ; e2=exp                         { A.Un(A.Not, A.Bin(e1,A.Lt,e2,i), i) }
   | e1=exp; i=NEQ; e2=exp                         { A.Un(A.Not, A.Bin(e1,A.Eq,e2,i), i) }
   | id=ID; LPAREN; al=arg_list; RPAREN            { let {v;i}=id in A.App(v,al,i) }
+  | NEW; t=simpty; e=array_alloc                  { A.ArrayAlloc(t,e,A.extract_info_exp e) }
+  | i=NEW; t=varty                                { A.Alloc(t,i)}
+  ;
+
+array_alloc : 
+  | LBRACK; e=exp; RBRACK                         { e }
+  | e1=array_alloc; LBRACK; e=exp; RBRACK         { A.Bin(e1, A.Times, e, dummyinfo) }
   ;
 
 rev_arg_list : 
