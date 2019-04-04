@@ -122,8 +122,8 @@ stmt_list :
   | d=decl; sl=stmt_list                          { d sl }
   | s=stmt; sl=stmt_list                          
     { match sl with 
-      | A.Seq(sl',_) -> A.Seq(s::sl', A.extract_info_stmt s) 
-      | _ as s' -> A.Seq([s;s'], A.extract_info_stmt s) }
+      | A.Seq(sl',_) -> A.Seq(s::sl', A.Util.extract_info_stmt s) 
+      | _ as s' -> A.Seq([s;s'], A.Util.extract_info_stmt s) }
   ;
 
 decl : 
@@ -149,7 +149,7 @@ simpopt :
   ;
 
 simp : 
-  | e=exp                                         { A.Exp(e, A.extract_info_exp e) }
+  | e=exp                                         { A.Exp(e, A.Util.extract_info_exp e) }
   | l=lvalue; ii=ASSIGN; e=exp                    { A.Assign(l,e,ii) }
   | i=RETURN; e=exp                               { A.Return(e,i) }
   | i=RETURN;                                     { A.Return(A.Nil,i) }
@@ -202,7 +202,7 @@ simplvalue:
 complvalue:
   | LPAREN; l=complvalue; RPAREN                  { l }
   | LPAREN; l=simplvalue; RPAREN                  { l }
-  | l=complvalue; LBRACK; e=exp; RBRACK           { A.SubscriptVar(l,e,A.extract_info_var l) }
+  | l=complvalue; LBRACK; e=exp; RBRACK           { A.SubscriptVar(l,e,A.Util.extract_info_var l) }
   | vi=id_with_lbrack; e=exp; RBRACK              { let {v;i}=vi in A.SubscriptVar(A.SimpVar(v,i),e,i) }
   | l=lvalue; DOT; id=ID                          { let {v;i}=id in A.FieldVar(l,v,i) }
   ;
@@ -229,7 +229,7 @@ compexp :
   | e1=exp; i=GEQ; e2=exp                         { A.Un(A.Not, A.Bin(e1,A.Lt,e2,i), i) }
   | e1=exp; i=NEQ; e2=exp                         { A.Un(A.Not, A.Bin(e1,A.Eq,e2,i), i) }
   | id=ID; LPAREN; al=arg_list; RPAREN            { let {v;i}=id in A.App(v,al,i) }
-  | NEW; t=simpty; e=array_alloc                  { A.ArrayAlloc(t,e,A.extract_info_exp e) }
+  | NEW; t=simpty; e=array_alloc                  { A.ArrayAlloc(t,e,A.Util.extract_info_exp e) }
   | i=NEW; t=varty                                { A.Alloc(t,i)}
   ;
 
@@ -265,10 +265,10 @@ control :
   | i=FOR; LPAREN; sop1=simpopt;
     SEMICOLON; e=exp; SEMICOLON; sop2=simpopt;
     RPAREN; s=stmt                                
-    { A.Seq([sop1;A.While(e, A.Seq([s; sop2], A.extract_info_stmt s), i)], A.extract_info_stmt sop1) }
+    { A.Seq([sop1;A.While(e, A.Seq([s; sop2], A.Util.extract_info_stmt s), i)], A.Util.extract_info_stmt sop1) }
   | i=FOR; LPAREN; d=decl; e=exp; SEMICOLON; sop2=simpopt;
     RPAREN; s=stmt                                
-    { d (A.While(e, A.Seq([s; sop2], A.extract_info_stmt s), i)) }
+    { d (A.While(e, A.Seq([s; sop2], A.Util.extract_info_stmt s), i)) }
 
   ;
 
