@@ -1,10 +1,11 @@
 open Ast 
+open Ast.Util
 open Parser 
 open Printf 
 open Lexing
 open Lexer
 open Printer
-(*open Sement*)
+open Sement
 open Support.Error
 
 let print_position outx lexbuf = 
@@ -22,7 +23,7 @@ let parse_with_error lexbuf =
     fprintf stderr "%a" print_position lexbuf;
     exit(0)
 ;;
-(*
+
 let check_with_error s = 
   try check s with 
   | Duplicated_Definition i -> 
@@ -39,7 +40,14 @@ let check_with_error s =
     fprintf stderr "%a %s" printInfo i "Function Declaration Mismatched\n"
   | Not_Function i -> 
     fprintf stderr "%a %s" printInfo i "Identifier Not a Function\n"
-*)
+  | No_Fieldname i -> 
+    fprintf stderr "%a %s" printInfo i "No Such Field\n"
+  | Not_Struct i -> 
+    fprintf stderr "%a %s" printInfo i "Identifier Not a Struct\n"
+  | Alloc_Non_Struct i -> 
+    fprintf stderr "%a %s" printInfo i "Allocation of Array and Struct Only\n"
+  | Type_Var_Misuse i -> 
+    fprintf stderr "%a %s" printInfo i "Variable Expected. Not Type\n"
 let print_helper = "What do you need?\n"
 
 let () = 
@@ -56,7 +64,7 @@ let () =
           let s = simplify (parse_with_error lexbuf) in 
           print_stmt "" s;
           print_newline();
-          (*check_with_error s;*)
+          check_with_error s;
           close_in inx
           )
   | _ -> fprintf stderr "Too many arguments! Expected 1\n"; exit(0)
