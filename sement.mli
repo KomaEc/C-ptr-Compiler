@@ -9,6 +9,10 @@ exception Ill_Typed of info
 exception Arity_Mismatched of info
 exception Fundec_Mismatched of info
 exception Not_Function of info
+exception No_Fieldname of info
+exception Not_Struct of info
+exception Alloc_Non_Struct of info
+exception Type_Var_Misuse of info
 
 (*
 type def_bind 
