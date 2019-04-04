@@ -42,8 +42,7 @@ and var =
   | SimpVar of ident * info 
   | FieldVar of var * ident * info 
   | SubscriptVar of var * exp * info
-and binop = Plus | Minus | Times | Div | And | Or
-  | Lt | Gt | Eq
+and binop = Plus | Minus | Times | Div | And | Or | Lt | Gt | Eq
 and unop = Not
 and ty = Int | Bool | Void
        | Arrow of ty list * ty  
@@ -51,56 +50,60 @@ and ty = Int | Bool | Void
        | NameTy of ident
 
 
-let cons s i sl = 
-  match sl with 
-  | Seq(sl',_) -> Seq(s::sl',i) 
-  | _ as sl -> Seq([s;sl], i)
+module Util = struct
 
-let rec simplify = function 
-  | If(e,s,sop,i) -> 
-    (match sop with 
-     | Some s' -> If(e, simplify s, Some (simplify s'),i)
-     | None -> If(e, simplify s, sop, i))
-  | While(e,s,i) -> While(e, simplify s,  i) 
-  | Seq([], i) -> Nop 
-  | Seq([s], i) -> s
-  | Seq(sl, i) -> Seq(simplify_seq sl, i)
-  | Vardecl(id,t,s,i) -> Vardecl(id,t,simplify s,i) 
-  | Fundecl(id,t,s,i) -> Fundecl(id,t,simplify s,i)
-  | Fundefn(id,idl,t,s',s,i) -> Fundefn(id,idl,t,simplify s',simplify s,i)
-  | _ as s -> s 
-and simplify_seq sl = 
-  List.fold_right 
-    (fun s acc -> 
-    match simplify s with 
-    | Seq(sl', _) -> sl' @ acc 
-    | _ as s' -> s' :: acc) sl []
+  let cons s i sl = 
+    match sl with 
+    | Seq(sl',_) -> Seq(s::sl',i) 
+    | _ as sl -> Seq([s;sl], i)
 
-let rec extract_info_stmt = function 
-  | Assign(_,_,i) -> i 
-  | If(_,_,_,i) -> i 
-  | While(_,_,i) -> i 
-  | Return(_,i) -> i 
-  | Nop -> dummyinfo 
-  | Exp(_,i) -> i 
-  | Seq(_,i) -> i 
-  | Vardecl(_,_,_,i) -> i 
-  | Fundecl(_,_,_,i) -> i 
-  | Fundefn(_,_,_,_,_,i) -> i
-  | Structdecl(_,_,i) -> i 
-  | Structdefn(_,_,_,i) -> i
-and extract_info_var = function 
-  | SimpVar(_,i) -> i 
-  | FieldVar(_,_,i) -> i 
-  | SubscriptVar(_,_,i) -> i
-and extract_info_exp = function 
-  | Intconst(_,i) -> i 
-  | True(i) -> i 
-  | False(i) -> i 
-  | Var(v) -> extract_info_var v
-  | Bin(_,_,_,i) -> i 
-  | Un(_,_,i) -> i 
-  | App(_,_,i) -> i
-  | ArrayAlloc(_,_,i) -> i 
-  | Alloc(_,i) -> i
-  | Nil -> dummyinfo
+  let rec simplify = function 
+    | If(e,s,sop,i) -> 
+      (match sop with 
+       | Some s' -> If(e, simplify s, Some (simplify s'),i)
+       | None -> If(e, simplify s, sop, i))
+    | While(e,s,i) -> While(e, simplify s,  i) 
+    | Seq([], i) -> Nop 
+    | Seq([s], i) -> s
+    | Seq(sl, i) -> Seq(simplify_seq sl, i)
+    | Vardecl(id,t,s,i) -> Vardecl(id,t,simplify s,i) 
+    | Fundecl(id,t,s,i) -> Fundecl(id,t,simplify s,i)
+    | Fundefn(id,idl,t,s',s,i) -> Fundefn(id,idl,t,simplify s',simplify s,i)
+    | _ as s -> s 
+  and simplify_seq sl = 
+    List.fold_right 
+      (fun s acc -> 
+      match simplify s with 
+      | Seq(sl', _) -> sl' @ acc 
+      | _ as s' -> s' :: acc) sl []
+
+  let rec extract_info_stmt = function 
+    | Assign(_,_,i) -> i 
+    | If(_,_,_,i) -> i 
+    | While(_,_,i) -> i 
+    | Return(_,i) -> i 
+    | Nop -> dummyinfo 
+    | Exp(_,i) -> i 
+    | Seq(_,i) -> i 
+    | Vardecl(_,_,_,i) -> i 
+    | Fundecl(_,_,_,i) -> i 
+    | Fundefn(_,_,_,_,_,i) -> i
+    | Structdecl(_,_,i) -> i 
+    | Structdefn(_,_,_,i) -> i
+  and extract_info_var = function 
+    | SimpVar(_,i) -> i 
+    | FieldVar(_,_,i) -> i 
+    | SubscriptVar(_,_,i) -> i
+  and extract_info_exp = function 
+    | Intconst(_,i) -> i 
+    | True(i) -> i 
+    | False(i) -> i 
+    | Var(v) -> extract_info_var v
+    | Bin(_,_,_,i) -> i 
+    | Un(_,_,i) -> i 
+    | App(_,_,i) -> i
+    | ArrayAlloc(_,_,i) -> i 
+    | Alloc(_,i) -> i
+    | Nil -> dummyinfo
+
+end
