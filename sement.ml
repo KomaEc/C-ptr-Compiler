@@ -101,11 +101,12 @@ let rec check_def : def_env -> Ast.stmt -> str_env = fun def_env -> function
                              fl; enter id tbl (check_def def_env s)
     with Not_found -> 
       let tbl = Hashtbl.create 20 in 
+      let def_env' = enter id (Strucdef(ref true, tbl)) def_env in
       List.iter (fun (id,t) -> 
                 (match t with
-                | NameTy(tid) -> (try ignore (lookup tid def_env) with Not_found -> raise(Lack_Definition i))
+                | NameTy(tid) -> (try ignore (lookup tid def_env') with Not_found -> raise(Lack_Definition i))
                 | _ -> ()); Hashtbl.add tbl id t)
-                fl; enter id tbl (check_def (enter id (Strucdef(ref true, tbl)) def_env) s) )
+                fl; enter id tbl (check_def def_env' s) )
   | Nop -> empty
 and check_id_def id i def_env : unit =
   let _ = lookup id def_env in raise (Duplicated_Definition i)
@@ -309,7 +310,9 @@ let rec trans_stmt : var_env -> str_env -> Ast.stmt -> Translate.exp =
       | _ -> raise (Not_Struct i))
     | SubscriptVar(var, e, i) -> 
       let { exp = e; ty = ty } = trvar var in 
-      { exp = (); ty = Ast.ArrayTy(ty)} in 
+      (match ty with 
+      | ArrayTy(ty) -> { exp = (); ty = ty }
+      | _ -> raise (Ill_Typed i)) in 
   let rec trstmt = function 
   | Assign(var, e, i) -> 
     let { exp ; ty = ty} = trvar var in 
