@@ -1,4 +1,5 @@
 # Cm-Compiler
+## Intro
 A compiler for a C-like imperative programming language, supporting int array and struct. (Under development) Goals: midend that supports data flow analysis framework, and Andersen's pointer analysis.
 
 ## Currently
