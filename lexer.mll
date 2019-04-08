@@ -15,21 +15,19 @@
 
   let reserved_word = [
     (* keywords *)
-    "true", (fun i -> TRUE i);
-    "false", (fun i -> FALSE i);
     "for", (fun i -> FOR i);
     "if", (fun i -> IF i);
     "int", (fun _ -> INT);
-    "bool", (fun _ -> BOOL);
     "void", (fun _ -> VOID);
     "return", (fun i -> RETURN i);
     "else", (fun i -> ELSE i);
-    "typedef", (fun _ -> TYPEDEF);
     "struct", (fun _ -> STRUCT);
     "new", (fun i -> NEW i);
+    "true", (fun i -> TRUE i);
+    "false", (fun i -> FALSE i);
+    "bool", (fun i -> BOOL);
 
     (* symbols *)
-    ":", (fun i -> COLON i);
     ",", (fun i -> COMMA i);
     ";", (fun i -> SEMICOLON i);
     "(", (fun i -> LPAREN i);
