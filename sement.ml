@@ -16,6 +16,8 @@ exception No_Fieldname of info
 exception Not_Struct of info
 exception Alloc_Non_Struct of info
 exception Type_Var_Misuse of info
+exception Not_Proper_Ret of info 
+
 
 module type env = sig 
 
@@ -293,7 +295,12 @@ let trans_exp : var_env -> str_env -> Ast.exp -> exp_and_ty =
   in 
   fun e -> trexp e
 
-let rec trans_stmt : var_env -> str_env -> Ast.stmt -> Translate.exp = 
+type prop_ret = { ret : bool; ty : Ast.ty }
+
+type exp_and_prop_ret = Translate.exp * prop_ret
+
+(* TODO: make proper return check efficient  *)
+let rec trans_stmt : var_env -> str_env -> Ast.stmt -> exp_and_prop_ret = 
   fun venv glb_senv -> 
   let rec trvar = function 
     | SimpVar(id, i) -> 
@@ -313,17 +320,21 @@ let rec trans_stmt : var_env -> str_env -> Ast.stmt -> Translate.exp =
       (match ty with 
       | ArrayTy(ty) -> { exp = (); ty = ty }
       | _ -> raise (Ill_Typed i)) in 
-  let rec trstmt = function 
+  let rec trstmt : Ast.stmt -> exp_and_prop_ret = function 
   | Assign(var, e, i) -> 
-    let { exp ; ty = ty} = trvar var in 
+    let { exp ; ty = ty } = trvar var in 
     let { exp = exp'; ty = ty' } = trans_exp venv glb_senv e in 
     (match ty = ty' with 
-    | true -> () 
+    | true -> ((), { ret = false; ty = Ast.Void })
     | _ -> raise (Ill_Typed i))
   | If(e, s, Some(s'), i) -> 
     let { exp; ty } = trans_exp venv glb_senv e in 
     (match ty with 
-    | Ast.Bool -> let () = trstmt s in trstmt s'
+    | Ast.Bool -> let (exp, { ret; ty }) = trstmt s in 
+                  let (exp', { ret = ret'; ty = ty'} ) = trstmt s' in 
+                  if ret && ret' && (ty = ty') then 
+                  ((), { ret = true; ty = ty })
+                  else ((), { ret = false; ty = Ast.Void })
     | _ -> raise (Ill_Typed i))
   | If(e, s, None, i) -> 
     let { exp; ty } = trans_exp venv glb_senv e in 
@@ -333,16 +344,22 @@ let rec trans_stmt : var_env -> str_env -> Ast.stmt -> Translate.exp =
   | While(e, s, i) -> 
     let { exp; ty } = trans_exp venv glb_senv e in 
     (match ty with 
-    | Ast.Bool -> trstmt s 
+    | Ast.Bool -> let (_, { ret = _; ty = _}) = trstmt s in 
+                  ((), { ret = false; ty = Ast.Void })
     | _ -> raise (Ill_Typed i))
   | Return(e, i) ->
-    let { exp = _; ty = _ } = trans_exp venv glb_senv e in 
-    () 
-  | Nop -> () 
+    let { exp = _; ty = ty } = trans_exp venv glb_senv e in 
+    ((), { ret = true; ty = ty }) 
+  | Nop -> ((), { ret = false; ty = Ast.Void} )
   | Exp(e, i) -> 
-    let { exp; ty = _ } = trans_exp venv glb_senv e in 
-    exp 
-  | Seq(sl, i) -> List.iter trstmt sl 
+    let { exp = _; ty = _ } = trans_exp venv glb_senv e in 
+    ((), { ret = false; ty = Ast.Void })
+  | Seq(sl, i) -> 
+    List.fold_left
+    (fun (exp, { ret; ty }) s -> 
+    let (exp', { ret = ret'; ty = ty'}) = trstmt s in 
+    ((), (if ret then { ret = true; ty = ty} else { ret = ret'; ty = ty'})) )
+    ((), { ret = false; ty = Ast.Void}) sl
   | Vardecl(id, t, s, i) -> 
     trans_stmt (enter id (Env.Var(t)) venv) glb_senv s 
   | Fundecl(id, Arrow(tyl, ty), s, i) -> 
@@ -352,13 +369,15 @@ let rec trans_stmt : var_env -> str_env -> Ast.stmt -> Translate.exp =
     let venv'' = (try List.fold_left2 
                       (fun acc id ty -> enter id (Env.Var(ty)) acc) venv' idl tyl
                   with Invalid_argument _ -> assert false) in 
-      let _ = trans_stmt venv'' glb_senv s' in 
+    let (_, { ret = ret'; ty = ty'} ) = trans_stmt venv'' glb_senv s' in 
+      if not ret' || not (ty = ty') then raise (Not_Proper_Ret i)
+      else
       trans_stmt venv' glb_senv s
   | Structdecl(_, s, _) -> 
-      trstmt s 
+    trstmt s 
   | Structdefn(_, _, s, _) -> 
-      trstmt s 
-  | _ -> () in 
+    trstmt s 
+  | _ -> assert false in 
   fun s -> trstmt s
 
 
@@ -366,4 +385,4 @@ let rec trans_stmt : var_env -> str_env -> Ast.stmt -> Translate.exp =
 let check s = 
   let glb_senv = (check_def empty s) in 
   check_init s;
-  trans_stmt empty glb_senv s
+  let (exp, _) = trans_stmt empty glb_senv s in exp
