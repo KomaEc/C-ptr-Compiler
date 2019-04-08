@@ -18,6 +18,8 @@ and stmt =
   | Assign of var * simp_exp
   | Arith of var * simp_exp * binop * simp_exp 
   | Rel of var * simp_exp * relop * simp_exp 
+  | Array_fetch of var * var * simp_exp
+  | Array_store of var * simp_exp * simp_exp
   | Label of label 
   | Jmp of label 
   | CJmp of var * label 
@@ -62,6 +64,14 @@ let string_of_simp_exp = function
   | Const(i) -> string_of_int i
 
 let rec print_stmt = function 
+  | Array_fetch(t1, t2, t3) -> 
+    print_header();
+    print_endline (string_of_temp t1 ^ " = " ^ string_of_temp t2 
+                  ^ "[" ^ string_of_simp_exp t3 ^ "];")
+  | Array_store(t1, t2, t3) -> 
+    print_header();
+    print_endline (string_of_temp t1 ^ "[" ^ string_of_simp_exp t2 ^ "] = " 
+                  ^ string_of_simp_exp t3 ^ ";")
   | Assign(t1, t2) -> 
     print_header();
     print_endline (string_of_temp t1 ^ " = " ^ string_of_simp_exp t2 ^ ";")
