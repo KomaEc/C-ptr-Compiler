@@ -15,9 +15,7 @@ and label = Temp.label
 and prog = stmt list 
 
 and stmt = 
-  | Assign_var of var * var 
-  | Assign_const of var * int
-  | Assign_label of var * label
+  | Assign of var * simp_exp
   | Arith of var * var * binop * var 
   | Rel of var * var * relop * var 
   | Label of label 
@@ -40,6 +38,10 @@ and binop = Plus | Minus | Times | Div
 
 and relop = Eq | Lt | And | Or
 
+and simp_exp = 
+  | Const of int 
+  | Var of var
+
 let print_header () = print_string "  "
 
 let string_of_bop = function 
@@ -55,15 +57,15 @@ let string_of_rop = function
   | Or ->  " || "
 
 let rec print_stmt = function 
-  | Assign_var(t1, t2) -> 
+  | Assign(t1, Var(t2)) -> 
     print_header();
     print_endline (string_of_temp t1 ^ " = " ^ string_of_temp t2 ^ ";")
-  | Assign_const(t, i) -> 
+  | Assign(t, Const(i)) -> 
     print_header();
     print_endline (string_of_temp t ^ " = " ^ string_of_int i ^ ";")
-  | Assign_label(t, l) -> 
+  (*| Assign_label(t, l) -> 
     print_header();
-    print_endline (string_of_temp t ^ " = " ^ string_of_label l ^ ";") 
+    print_endline (string_of_temp t ^ " = " ^ string_of_label l ^ ";") *)
   | Arith(t1, t2, bop, t3) -> 
     print_header();
     print_endline (string_of_temp t1 ^ " = " 
