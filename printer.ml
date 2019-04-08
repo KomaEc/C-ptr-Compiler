@@ -74,8 +74,6 @@ let rec print_stmt pre = function
       print_stmt pre s
 and print_exp = function 
   | Intconst(i,_) -> print_int i
-  | True(_) -> print_string "true";
-  | False(_) -> print_string "false";
   | Var(v) -> print_var v;
   | Un(op, exp,_) ->
       (match op with 
@@ -110,6 +108,8 @@ and print_exp = function
   | Alloc(t,_) -> 
       print_string "new ";
       print_ty t
+  | True(_) -> print_string "true"
+  | False(_) -> print_string "false"
 and print_var = function 
   | SimpVar(id,i) -> print_string (name id)
   | FieldVar(v,id,_) -> 
