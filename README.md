@@ -8,6 +8,6 @@ With an input C file, the compiler transforms the source file into an AST, and p
 ## To Use
 ```bash
 ocamlbuild -use-menhir main.native
-./main.native ./test/basic.cptr
+./main.native ./test/basic.cm
 ```
 File "basic.cptr" is written in Cm. A translated version will be printed to the stdout channel.
