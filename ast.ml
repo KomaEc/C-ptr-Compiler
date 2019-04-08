@@ -30,7 +30,8 @@ type stmt =
 and ident = Symbol.t 
 and exp = 
   | Intconst of int * info
-  | True of info | False of info
+  | True of info 
+  | False of info
   | Var of var
   | Bin of exp * binop * exp * info
   | Un of unop * exp * info
@@ -96,14 +97,14 @@ module Util = struct
     | SubscriptVar(_,_,i) -> i
   and extract_info_exp = function 
     | Intconst(_,i) -> i 
-    | True(i) -> i 
-    | False(i) -> i 
     | Var(v) -> extract_info_var v
     | Bin(_,_,_,i) -> i 
     | Un(_,_,i) -> i 
     | App(_,_,i) -> i
     | ArrayAlloc(_,_,i) -> i 
     | Alloc(_,i) -> i
+    | True(i) -> i 
+    | False(i) -> i
     | Nil -> dummyinfo
 
 end
