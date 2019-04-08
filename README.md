@@ -10,4 +10,4 @@ With an input C file, the compiler transforms the source file into an AST, and p
 ocamlbuild -use-menhir main.native
 ./main.native ./test/basic.cptr
 ```
-File "basic.cptr" is written in C-ptr. A translated version will be printed to the stdout channel.
+File "basic.cptr" is written in Cm. A translated version will be printed to the stdout channel.
