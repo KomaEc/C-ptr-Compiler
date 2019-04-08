@@ -1,5 +1,5 @@
-# C-ptr-Compiler
-A compiler for a C-like imperative programming language, supporting dataflow analysis and pointer analysis. (Under development)
+# Cm-Compiler
+A compiler for a C-like imperative programming language, supporting int array and struct. (Under development) Goals: midend that supports data flow analysis framework, and Andersen's pointer analysis.
 
 # Currently
 With an input C file, the compiler transforms the source file into an AST, and performs sementic checks (including variable inialization, type checking), and then prints the output.
