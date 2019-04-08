@@ -8,12 +8,11 @@
 
 %token <int Support.Error.withinfo> NUM
 %token <Symbol.t Support.Error.withinfo> ID 
-%token <Support.Error.info> TRUE FALSE
 %token <Support.Error.info> FOR IF ELSE
-%token INT BOOL VOID
-%token <Support.Error.info> MAIN
+%token <Support.Error.info> TRUE FALSE
+%token INT VOID BOOL
 %token <Support.Error.info> RETURN
-%token <Support.Error.info> SEMICOLON COMMA COLON
+%token <Support.Error.info> SEMICOLON COMMA
 %token <Support.Error.info> LPAREN RPAREN
 %token <Support.Error.info> LBRACE RBRACE
 %token <Support.Error.info> LBRACK RBRACK
@@ -23,11 +22,9 @@
 %token <Support.Error.info> AND OR
 %token <Support.Error.info> NOT
 %token <Support.Error.info> ASSIGN NEQ LT GT LEQ GEQ EQ
-%token TYPEDEF
 %token STRUCT
 %token <Support.Error.info> NEW
 
-%right ASSIGN
 %left OR
 %left AND
 %left EQ NEQ
@@ -173,9 +170,9 @@ varty:
   ;
 
 primitivety:
-  | i=INT                                         { A.Int }
-  | i=BOOL                                        { A.Bool }
-  | i=VOID                                        { A.Void }
+  | INT                                         { A.Int }
+  | VOID                                        { A.Void }
+  | BOOL                                        { A.Bool }
   ;
 
 compty : 
