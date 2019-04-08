@@ -16,8 +16,8 @@ and prog = stmt list
 
 and stmt = 
   | Assign of var * simp_exp
-  | Arith of var * var * binop * var 
-  | Rel of var * var * relop * var 
+  | Arith of var * simp_exp * binop * simp_exp 
+  | Rel of var * simp_exp * relop * simp_exp 
   | Label of label 
   | Jmp of label 
   | CJmp of var * label 
@@ -36,7 +36,7 @@ and stmt =
 
 and binop = Plus | Minus | Times | Div
 
-and relop = Eq | Lt | And | Or
+and relop = Eq | Lt | Gt | And | Or
 
 and simp_exp = 
   | Const of int 
@@ -55,27 +55,29 @@ let string_of_rop = function
   | Lt ->  " < "
   | And ->  " && "
   | Or ->  " || "
+  | Gt -> " > "
+
+let string_of_simp_exp = function 
+  | Var(t) -> string_of_temp t 
+  | Const(i) -> string_of_int i
 
 let rec print_stmt = function 
-  | Assign(t1, Var(t2)) -> 
+  | Assign(t1, t2) -> 
     print_header();
-    print_endline (string_of_temp t1 ^ " = " ^ string_of_temp t2 ^ ";")
-  | Assign(t, Const(i)) -> 
-    print_header();
-    print_endline (string_of_temp t ^ " = " ^ string_of_int i ^ ";")
+    print_endline (string_of_temp t1 ^ " = " ^ string_of_simp_exp t2 ^ ";")
   (*| Assign_label(t, l) -> 
     print_header();
     print_endline (string_of_temp t ^ " = " ^ string_of_label l ^ ";") *)
   | Arith(t1, t2, bop, t3) -> 
     print_header();
     print_endline (string_of_temp t1 ^ " = " 
-                  ^ string_of_temp t2 ^ string_of_bop bop 
-                  ^ string_of_temp t3 ^ ";")
+                  ^ string_of_simp_exp t2 ^ string_of_bop bop 
+                  ^ string_of_simp_exp t3 ^ ";")
   | Rel(t1, t2, rop, t3) -> 
     print_header();
     print_endline (string_of_temp t1 ^ " = " 
-                  ^ string_of_temp t2 ^ string_of_rop rop 
-                  ^ string_of_temp t3 ^ ";")
+                  ^ string_of_simp_exp t2 ^ string_of_rop rop 
+                  ^ string_of_simp_exp t3 ^ ";")
   | Label(l) -> 
     print_endline (string_of_label l ^ ":")
   | Jmp(l) -> 

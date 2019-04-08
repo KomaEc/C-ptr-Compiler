@@ -3,6 +3,8 @@ type t
 
 val newtemp : ?hint:Symbol.t -> unit -> t 
 
+val place_holder : t
+
 val string_of_temp : t -> string
 
 type label = Symbol.t 
