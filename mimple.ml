@@ -36,6 +36,7 @@ and const = [
 
  and stmt = [
    | `Assign of var * rvalue
+   | `Identity of [ `Temp of Temp.t ] * identity_value 
    | `Label of label 
    | `Goto of label 
    | `If of condition * label
@@ -53,6 +54,10 @@ and const = [
    | `Bin of intermediate * binop * intermediate
    | `Rel of intermediate * binop * intermediate
    | `Static_invoke of label * intermediate list
+ ]
+
+ and identity_value = [
+   | `Parameter_ref of int
  ]
 
  and binop = [ `Plus | `Minus | `Times | `Div ]
