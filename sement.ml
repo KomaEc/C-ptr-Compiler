@@ -25,7 +25,7 @@ module type env = sig
   type ty
   type entry = Var of ty | Func of ty list * ty
   (* struct env *)
-  val base_senv : (Symbol.t, ty) Hashtbl.t Symbol.table
+  val base_senv : (Symbol.t, ty * int) Hashtbl.t Symbol.table
   (* variable env, maps vars to types *)
   val base_venv : entry Symbol.table
 end
@@ -35,17 +35,16 @@ module Env : env with type ty = Ast.ty = struct
   type entry = Var of ty | Func of ty list * ty
   let base_senv = Symbol.empty 
 
-  
   let base_venv = 
     let s = Symbol.symbol "malloc" in 
     Symbol.enter s (Func([Ast.Int], Ast.Int)) Symbol.empty
 end
 
 type def_bind = 
-  | Vardef | Fundef of bool ref | Strucdef of bool ref * (Symbol.t, Ast.ty) Hashtbl.t
+  | Vardef | Fundef of bool ref | Strucdef of bool ref * (Symbol.t, Ast.ty * int) Hashtbl.t
 
 type def_env = def_bind Symbol.table 
-type str_env = (Symbol.t, Ast.ty) Hashtbl.t Symbol.table
+type str_env = (Symbol.t, Ast.ty * int) Hashtbl.t Symbol.table
 type var_env = Env.entry Symbol.table 
 
 (**  check function declaration and variable declaration 
@@ -100,19 +99,21 @@ let rec check_def : def_env -> Ast.stmt -> str_env = fun def_env -> function
          | Vardef -> raise (Duplicated_Definition i) 
          | Fundef(_) -> raise (Duplicated_Definition i)
          | Strucdef (br,tbl) -> if !br then raise (Duplicated_Definition i)
-                        else br := true;
+                        else begin br := true;
+                             let off_set = ref 0 in
                              List.iter (fun (id,t) ->
                                         (match t with 
                                         | NameTy(tid) -> (try ignore (lookup tid def_env) with Not_found -> raise (Lack_Definition i))
-                                        | _ -> ()); Hashtbl.add tbl id t)
-                             fl; enter id tbl (check_def def_env s)
+                                        | _ -> ()); Hashtbl.add tbl id (t, !off_set); off_set := !off_set + 8)
+                             fl; enter id tbl (check_def def_env s) end
     with Not_found -> 
       let tbl = Hashtbl.create 20 in 
       let def_env' = enter id (Strucdef(ref true, tbl)) def_env in
+      let off_set = ref 0 in
       List.iter (fun (id,t) -> 
                 (match t with
                 | NameTy(tid) -> (try ignore (lookup tid def_env') with Not_found -> raise(Lack_Definition i))
-                | _ -> ()); Hashtbl.add tbl id t)
+                | _ -> ()); Hashtbl.add tbl id (t, !off_set); off_set := !off_set + 8)
                 fl; enter id tbl (check_def def_env' s) )
   | Nop -> empty
 and check_id_def id i def_env : unit =
@@ -332,7 +333,7 @@ let trans_exp : var_env -> str_env -> Ast.exp -> exp_and_ty =
       (match ty with 
       | NameTy(id) -> let tbl = lookup id glb_senv in 
                       (match Hashtbl.find_opt tbl fname with 
-                      | Some(ty) -> { exp = place_holder; ty = ty } (* Problematic *)
+                      | Some(ty, _) -> { exp = place_holder; ty = ty } (* Problematic *)
                       | None -> raise (No_Fieldname i))
       | _ -> raise (Not_Struct i))
     | SubscriptVar(var, e, i) -> 
@@ -360,7 +361,7 @@ let rec trans_stmt : var_env -> str_env -> Ast.stmt -> exp_and_prop_ret =
       (match ty with 
       | NameTy(id) -> let tbl = lookup id glb_senv in 
                       (match Hashtbl.find_opt tbl fname with 
-                      | Some(ty) -> { exp = Temp.place_holder; ty = ty } (* Problematic *)
+                      | Some(ty, _) -> { exp = Temp.place_holder; ty = ty } (* Problematic *)
                       | None -> raise (No_Fieldname i))
       | _ -> raise (Not_Struct i))
     | SubscriptVar(var, e, i) -> 
