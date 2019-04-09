@@ -4,6 +4,7 @@ open Ast.Util
 open Symbol
 open Support.Error
 open Translate
+open Temp
 
 exception Duplicated_Definition of info 
 exception Lack_Definition of info
@@ -214,75 +215,75 @@ let trans_exp : var_env -> str_env -> Ast.exp -> exp_and_ty =
        | _ -> raise (Ill_Typed i)) in
   let rec trexp = function 
   | Intconst(num,_) -> 
-    let t = Temp.newtemp() in 
-    let () = Translate.emit (Ir_3addr.Assign(t, Ir_3addr.Const(num))) in
+    let t = newtemp() in 
+    let () = emit (Ir_3addr.Assign(t, Ir_3addr.Const(num))) in
     { exp = t; ty = Ast.Int }
   | True(_) -> 
-    let t = Temp.newtemp() in 
-    let () = Translate.emit (Ir_3addr.Assign(t, Ir_3addr.Const(1))) in
+    let t = newtemp() in 
+    let () = emit (Ir_3addr.Assign(t, Ir_3addr.Const(1))) in
     { exp = t; ty = Ast.Int }
   | False(_) -> 
-    let t = Temp.newtemp() in 
-    let () = Translate.emit (Ir_3addr.Assign(t, Ir_3addr.Const(0))) in
+    let t = newtemp() in 
+    let () = emit (Ir_3addr.Assign(t, Ir_3addr.Const(0))) in
     { exp = t; ty = Ast.Int }
   | Bin(e1, Plus, e2, i) ->
     let t1 = check_int (trexp e1) i in
     let t2 = check_int (trexp e2) i in
-    let t0 = Temp.newtemp() in
-    let () = Translate.emit (Ir_3addr.Arith(t0, Ir_3addr.Var(t1), Ir_3addr.Plus, Ir_3addr.Var(t2))) in
+    let t0 = newtemp() in
+    let () = emit (Ir_3addr.Arith(t0, Ir_3addr.Var(t1), Ir_3addr.Plus, Ir_3addr.Var(t2))) in
     { exp = t0; ty = Ast.Int }
   | Bin(e1, Minus, e2, i) ->
     let t1 = check_int (trexp e1) i in
     let t2 = check_int (trexp e2) i in
-    let t0 = Temp.newtemp() in
-    let () = Translate.emit (Ir_3addr.Arith(t0, Ir_3addr.Var(t1), Ir_3addr.Minus, Ir_3addr.Var(t2))) in
+    let t0 = newtemp() in
+    let () = emit (Ir_3addr.Arith(t0, Ir_3addr.Var(t1), Ir_3addr.Minus, Ir_3addr.Var(t2))) in
     { exp = t0; ty = Ast.Int }
   | Bin(e1, Times, e2, i) ->
     let t1 = check_int (trexp e1) i in
     let t2 = check_int (trexp e2) i in
-    let t0 = Temp.newtemp() in
-    let () = Translate.emit (Ir_3addr.Arith(t0, Ir_3addr.Var(t1), Ir_3addr.Times, Ir_3addr.Var(t2))) in
+    let t0 = newtemp() in
+    let () = emit (Ir_3addr.Arith(t0, Ir_3addr.Var(t1), Ir_3addr.Times, Ir_3addr.Var(t2))) in
     { exp = t0; ty = Ast.Int }
   | Bin(e1, Div, e2, i) ->
     let t1 = check_int (trexp e1) i in
     let t2 = check_int (trexp e2) i in
-    let t0 = Temp.newtemp() in
-    let () = Translate.emit (Ir_3addr.Arith(t0, Ir_3addr.Var(t1), Ir_3addr.Div, Ir_3addr.Var(t2))) in
+    let t0 = newtemp() in
+    let () = emit (Ir_3addr.Arith(t0, Ir_3addr.Var(t1), Ir_3addr.Div, Ir_3addr.Var(t2))) in
     { exp = t0; ty = Ast.Int }
   | Bin(e1, Lt, e2, i) ->
     let t1 = check_int (trexp e1) i in
     let t2 = check_int (trexp e2) i in
-    let t0 = Temp.newtemp() in
-    let () = Translate.emit (Ir_3addr.Rel(t0, Ir_3addr.Var(t1), Ir_3addr.Lt, Ir_3addr.Var(t2))) in
+    let t0 = newtemp() in
+    let () = emit (Ir_3addr.Rel(t0, Ir_3addr.Var(t1), Ir_3addr.Lt, Ir_3addr.Var(t2))) in
     { exp = t0; ty = Ast.Bool }
   | Bin(e1, Gt, e2, i) -> 
     let t1 = check_int (trexp e1) i in
     let t2 = check_int (trexp e2) i in
-    let t0 = Temp.newtemp() in
-    let () = Translate.emit (Ir_3addr.Rel(t0, Ir_3addr.Var(t1), Ir_3addr.Gt, Ir_3addr.Var(t2))) in
+    let t0 = newtemp() in
+    let () = emit (Ir_3addr.Rel(t0, Ir_3addr.Var(t1), Ir_3addr.Gt, Ir_3addr.Var(t2))) in
     { exp = t0; ty = Ast.Bool }
   | Bin(e1, And, e2, i) ->
     let t1 = check_bool (trexp e1) i in
     let t2 = check_bool (trexp e2) i in
-    let t0 = Temp.newtemp() in
-    let () = Translate.emit (Ir_3addr.Rel(t0, Ir_3addr.Var(t1), Ir_3addr.And, Ir_3addr.Var(t2))) in
+    let t0 = newtemp() in
+    let () = emit (Ir_3addr.Rel(t0, Ir_3addr.Var(t1), Ir_3addr.And, Ir_3addr.Var(t2))) in
     { exp = t0; ty = Ast.Bool }
   | Bin(e1, Or, e2, i) ->
     let t1 = check_bool (trexp e1) i in
     let t2 = check_bool (trexp e2) i in
-    let t0 = Temp.newtemp() in
-    let () = Translate.emit (Ir_3addr.Rel(t0, Ir_3addr.Var(t1), Ir_3addr.Or, Ir_3addr.Var(t2))) in
+    let t0 = newtemp() in
+    let () = emit (Ir_3addr.Rel(t0, Ir_3addr.Var(t1), Ir_3addr.Or, Ir_3addr.Var(t2))) in
     { exp = t0; ty = Ast.Bool }
   | Bin(e1, Eq, e2, i) -> 
     let t1 = check_int (trexp e1) i in
     let t2 = check_int (trexp e2) i in
-    let t0 = Temp.newtemp() in
-    let () = Translate.emit (Ir_3addr.Rel(t0, Ir_3addr.Var(t1), Ir_3addr.Eq, Ir_3addr.Var(t2))) in
+    let t0 = newtemp() in
+    let () = emit (Ir_3addr.Rel(t0, Ir_3addr.Var(t1), Ir_3addr.Eq, Ir_3addr.Var(t2))) in
     { exp = t0; ty = Ast.Bool }
   | Un(_, e, i) -> 
     let t1 = check_bool (trexp e) i in
-    let t0 = Temp.newtemp() in 
-    let () = Translate.emit (Ir_3addr.Arith(t0, Ir_3addr.Const(1), Ir_3addr.Minus, Ir_3addr.Var(t1))) in
+    let t0 = newtemp() in 
+    let () = emit (Ir_3addr.Arith(t0, Ir_3addr.Const(1), Ir_3addr.Minus, Ir_3addr.Var(t1))) in
     { exp = t0; ty = Ast.Bool }
   | App(id, el, i) -> 
     (try match lookup id venv with 
@@ -291,50 +292,53 @@ let trans_exp : var_env -> str_env -> Ast.exp -> exp_and_ty =
            (try List.iter2 
                 (fun e ty -> 
                 let { exp = e; ty = ty'} = trexp e in 
-                let () = Translate.emit (Ir_3addr.Push(e)) in
+                let () = emit (Ir_3addr.Push(e)) in
                 if not (ty = ty') then raise (Ill_Typed i) else ()) 
                 el tyl
             with Invalid_argument(_) -> raise (Arity_Mismatched i)); 
             (match ty with 
-            | Ast.Void -> { exp = Temp.place_holder; ty = ty } 
-            | _ -> let t = Temp.newtemp () in { exp = t; ty = ty })
+            | Ast.Void -> { exp = place_holder; ty = ty } 
+            | _ -> let t = newtemp () in { exp = t; ty = ty })
     with Not_found -> assert false)
   | ArrayAlloc(ty, e, i) -> (* TODO: get the size of the type *)
     let t = check_int (trexp e) i in
-    let t' = Temp.newtemp () in
-    let () = Translate.emit (Ir_3addr.Push t) in (* Problematic *)
-    let () = Translate.emit (Ir_3addr.Fun_call_ret(Symbol.symbol "malloc", t')) in
+    let t' = newtemp () in
+    let () = emit (Ir_3addr.Push t) in (* Problematic *)
+    let () = emit (Ir_3addr.Fun_call_ret(Symbol.symbol "malloc", t')) in
     { exp = t'; ty = Ast.ArrayTy(ty) }
   | Alloc(ty, i) -> 
     (match ty with 
     | NameTy(id) as ty -> (try let _ = lookup id glb_senv in 
-                               let t = Temp.newtemp () in 
-                               let t' = Temp.newtemp () in
-                               let () = Translate.emit (Ir_3addr.Assign(t, Ir_3addr.Const(4))) in (* Problematic *)
-                               let () = Translate.emit (Ir_3addr.Fun_call_ret(Symbol.symbol "malloc", t')) in
+                               let t = newtemp () in 
+                               let t' = newtemp () in
+                               let () = emit (Ir_3addr.Assign(t, Ir_3addr.Const(4))) in (* Problematic *)
+                               let () = emit (Ir_3addr.Fun_call_ret(Symbol.symbol "malloc", t')) in
                                { exp = t'; ty = ty } 
                     with Not_found -> raise (Lack_Definition i) )
     | _ -> raise (Alloc_Non_Struct i))
-  | Nil(_) -> { exp = Temp.place_holder; ty = Ast.Any }
+  | Nil(_) -> 
+    let t = newtemp () in 
+    (* Lack something *)
+    { exp = t; ty = Ast.Any }
   | Void_exp -> { exp = Temp.place_holder; ty = Ast.Void }
   | Var(var) -> trvar var 
   and trvar = function 
     | SimpVar(id, i) -> 
       (match lookup id venv with 
-      | Env.Var(ty) -> { exp = Temp.newtemp ~hint:id (); ty = ty }
+      | Env.Var(ty) -> { exp = newtemp ~hint:id (); ty = ty }
       | _ -> assert false)
     | FieldVar(var, fname, i) -> 
       let { exp = t; ty = ty } = trvar var in 
       (match ty with 
       | NameTy(id) -> let tbl = lookup id glb_senv in 
                       (match Hashtbl.find_opt tbl fname with 
-                      | Some(ty) -> { exp = Temp.place_holder; ty = ty } (* Problematic *)
+                      | Some(ty) -> { exp = place_holder; ty = ty } (* Problematic *)
                       | None -> raise (No_Fieldname i))
       | _ -> raise (Not_Struct i))
     | SubscriptVar(var, e, i) -> 
       let { exp = e; ty = ty } = trvar var in 
       (match ty with 
-      | ArrayTy(ty) -> { exp = Temp.place_holder; ty = ty } (* Problematic *)
+      | ArrayTy(ty) -> { exp = place_holder; ty = ty } (* Problematic *)
       | _ -> raise (Ill_Typed i))
   in 
   fun e -> trexp e

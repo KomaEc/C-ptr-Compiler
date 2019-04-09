@@ -10,8 +10,13 @@
 
 
 type intermediate = [
-  | `Intconst of int 
+  | `Const of const 
   | `Temp of Temp.t
+]
+
+and const = [
+  | `Null_const 
+  | `Int_const of int
 ]
 
  and var = [
