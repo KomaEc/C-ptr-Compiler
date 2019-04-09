@@ -18,13 +18,14 @@ exception Not_Struct of info
 exception Alloc_Non_Struct of info
 exception Type_Var_Misuse of info
 exception Not_Proper_Ret of info 
+exception Null_Reference of info
 
 
 module type env = sig 
 
   type ty
   type entry = Var of ty | Func of ty list * ty
-  (* struct env *)
+  (* struct env, maps field name to its type and offset *)
   val base_senv : (Symbol.t, ty * int) Hashtbl.t Symbol.table
   (* variable env, maps vars to types *)
   val base_venv : entry Symbol.table
@@ -335,6 +336,7 @@ let trans_exp : var_env -> str_env -> Ast.exp -> exp_and_ty =
                       (match Hashtbl.find_opt tbl fname with 
                       | Some(ty, _) -> { exp = place_holder; ty = ty } (* Problematic *)
                       | None -> raise (No_Fieldname i))
+      | Any -> raise (Null_Reference i)
       | _ -> raise (Not_Struct i))
     | SubscriptVar(var, e, i) -> 
       let { exp = e; ty = ty } = trvar var in 
@@ -363,6 +365,7 @@ let rec trans_stmt : var_env -> str_env -> Ast.stmt -> exp_and_prop_ret =
                       (match Hashtbl.find_opt tbl fname with 
                       | Some(ty, _) -> { exp = Temp.place_holder; ty = ty } (* Problematic *)
                       | None -> raise (No_Fieldname i))
+      | Any -> raise (Null_Reference i)
       | _ -> raise (Not_Struct i))
     | SubscriptVar(var, e, i) -> 
       let { exp = e; ty = ty } = trvar var in 

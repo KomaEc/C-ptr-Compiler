@@ -48,6 +48,8 @@ let check_with_error s =
     fprintf stderr "%a %s" printInfo i "Allocation of Array and Struct Only\n"
   | Type_Var_Misuse i -> 
     fprintf stderr "%a %s" printInfo i "Variable Expected. Not Type\n"
+  | Null_Reference i -> 
+    fprintf stderr "%a %s" printInfo i "Referencing a Nullptr\n"
 let print_helper = "What do you need?\n"
 
 let () = 

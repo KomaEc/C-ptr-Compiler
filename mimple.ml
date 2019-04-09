@@ -22,6 +22,7 @@ and const = [
  and var = [
    | `Temp of Temp.t 
    | `Array_ref of intermediate * intermediate
+   | `Instance_field_ref of intermediate * Symbol.t
  ]
 
  and label = Temp.label 
