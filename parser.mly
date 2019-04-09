@@ -24,6 +24,7 @@
 %token <Support.Error.info> ASSIGN NEQ LT GT LEQ GEQ EQ
 %token STRUCT
 %token <Support.Error.info> NEW
+%token <Support.Error.info> NULL
 
 %left OR
 %left AND
@@ -149,7 +150,7 @@ simp :
   | e=exp                                         { A.Exp(e, A.Util.extract_info_exp e) }
   | l=lvalue; ii=ASSIGN; e=exp                    { A.Assign(l,e,ii) }
   | i=RETURN; e=exp                               { A.Return(e,i) }
-  | i=RETURN;                                     { A.Return(A.Nil,i) }
+  | i=RETURN;                                     { A.Return(A.Void_exp,i) }
   ;
 
 id_with_lbrack:
@@ -211,6 +212,7 @@ exp :
 
 simpexp : 
   | l=lvalue                                      { A.Var(l) }
+  | i=NULL                                        { A.Nil(i) }
   ;
 
 

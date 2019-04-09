@@ -26,6 +26,7 @@
     "true", (fun i -> TRUE i);
     "false", (fun i -> FALSE i);
     "bool", (fun i -> BOOL);
+    "NULL", (fun i -> NULL i);
 
     (* symbols *)
     ",", (fun i -> COMMA i);

@@ -134,7 +134,7 @@ and check_def_exp def_env = function
     | NameTy(id) -> check_id_isdef id i def_env 
     | _ -> ()) 
   | Intconst(_) | True(_) | False(_)
-  | Nil -> ()
+  | Nil(_) | Void_exp -> ()
 and check_def_var_exp def_env = function 
   | SimpVar(id,i) -> 
    (try (match lookup id def_env with 
@@ -315,7 +315,8 @@ let trans_exp : var_env -> str_env -> Ast.exp -> exp_and_ty =
                                { exp = t'; ty = ty } 
                     with Not_found -> raise (Lack_Definition i) )
     | _ -> raise (Alloc_Non_Struct i))
-  | Nil -> { exp = Temp.place_holder; ty = Ast.Void }
+  | Nil(_) -> { exp = Temp.place_holder; ty = Ast.Any }
+  | Void_exp -> { exp = Temp.place_holder; ty = Ast.Void }
   | Var(var) -> trvar var 
   and trvar = function 
     | SimpVar(id, i) -> 
@@ -367,8 +368,9 @@ let rec trans_stmt : var_env -> str_env -> Ast.stmt -> exp_and_prop_ret =
   | Assign(var, e, i) -> 
     let { exp ; ty = ty } = trvar var in 
     let { exp = exp'; ty = ty' } = trans_exp venv glb_senv e in 
-    (match ty = ty' with 
-    | true -> ((), { ret = false; ty = Ast.Void })
+    (match (ty, ty') with 
+    | _ when ty = ty' -> ((), { ret = false; ty = Ast.Void })
+    | (NameTy(_), Any) -> ((), { ret = false; ty = Ast.Void})
     | _ -> raise (Ill_Typed i))
   | If(e, s, Some(s'), i) -> 
     let { exp; ty } = trans_exp venv glb_senv e in 

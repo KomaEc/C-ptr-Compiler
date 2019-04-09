@@ -104,7 +104,8 @@ and print_exp = function
       print_string "[";
       print_exp e;
       print_string "]"
-  | Nil -> print_string "()"
+  | Nil(i) -> print_string "NULL"
+  | Void_exp -> ()
   | Alloc(t,_) -> 
       print_string "new ";
       print_ty t
@@ -137,6 +138,7 @@ and print_ty = function
     print_ty t;
     print_string "[]";
   | NameTy(id) -> print_string (name id)
+  | Any -> ()
 and print_field_list = function 
   | [] -> () 
   | (id,t)::l -> 

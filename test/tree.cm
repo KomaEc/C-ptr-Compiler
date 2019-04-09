@@ -1,0 +1,23 @@
+struct tree {
+    int x;
+    tree left;
+    tree right;
+};
+
+int main() {
+    tree t = new tree;
+    t.x = 3;
+    t.left = new tree;
+    t.right = new tree;
+    t.left.x = 2;
+    t.right.x = 5;
+    t.left.left = NULL;
+    t.left.right = NULL;
+    t.right.left = NULL;
+    t.right.right = NULL;
+    tree[] forest = new tree[10];
+    for (int i = 0; i < 10; i = i + 1) {
+        forest[i].x = i;
+    }
+    return 0;
+}

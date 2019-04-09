@@ -38,7 +38,8 @@ and exp =
   | App of ident * exp list * info
   | ArrayAlloc of ty * exp * info
   | Alloc of ty * info
-  | Nil
+  | Nil of info
+  | Void_exp
 and var = 
   | SimpVar of ident * info 
   | FieldVar of var * ident * info 
@@ -48,7 +49,7 @@ and unop = Not
 and ty = Int | Bool | Void
        | Arrow of ty list * ty  
        | ArrayTy of ty
-       | NameTy of ident
+       | NameTy of ident | Any
 
 
 module Util = struct
@@ -105,6 +106,7 @@ module Util = struct
     | Alloc(_,i) -> i
     | True(i) -> i 
     | False(i) -> i
-    | Nil -> dummyinfo
+    | Nil(i) -> i
+    | Void_exp -> dummyinfo
 
 end
