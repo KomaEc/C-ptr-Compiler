@@ -215,11 +215,11 @@ let size_of_ty : str_env -> ty -> int =
 
 
 
+type status = Local | Global
 
 
-
-let rec trans_stmt : var_env -> str_env -> stmt -> unit = 
-  fun venv glb_senv -> 
+let rec trans_stmt : status -> var_env -> str_env -> stmt -> unit = 
+  fun st venv glb_senv -> 
 
   let module TranslateHelper = 
     struct
@@ -513,6 +513,7 @@ let rec trans_stmt : var_env -> str_env -> stmt -> unit =
   (* TODO : check proper return *)
   and trstmt : stmt -> unit = function 
     | Assign(var, expr, i) -> 
+      (* Should've done something in global status! *)
       let (var, ty, _) = trvar var in 
       let (rvalue, ty') = trexpr expr in 
       begin 
@@ -554,6 +555,37 @@ let rec trans_stmt : var_env -> str_env -> stmt -> unit =
       end
     | Seq(stmt_list, i) ->
       List.iter trstmt stmt_list 
+    | Vardecl(id, ty, s, i) ->
+      begin 
+        match st with 
+          | Local -> 
+            let venv' = enter id (Env.Local(ty)) venv in 
+            trans_stmt Local venv' glb_senv s 
+          | Global -> 
+            let venv' = Symbol.enter id (Env.Global(ty)) venv in 
+            trans_stmt Global venv' glb_senv s
+      end
+    | Fundecl(id, Arrow(tyl, ty), s, i) -> 
+      let venv' = enter id (Env.Func(tyl, ty)) venv in 
+      trans_stmt Global venv' glb_senv s 
+    | Fundefn(id, id_list, Arrow(tyl, ty), inner_s, s, i) ->
+      let l = newlabel ~hint:id () in 
+      let () = emit (`Label(l)) in 
+      let entry_list_ref = ref [] in 
+      let () = List.iteri 
+                 (fun i ty -> entry_list_ref := Env.Parameter(i, ty) :: !entry_list_ref)
+                   tyl in 
+      let entry_list = List.rev !entry_list_ref in 
+      let venv' = List.fold_left2 
+                    (fun acc id entry -> enter id entry acc)
+                      venv id_list entry_list in 
+      let () = trans_stmt Local venv' glb_senv inner_s in 
+      let () = emit `Nop in (* TODO: maybe explicit FuncEnd instead? *)
+      trstmt s
+    | Structdecl(id, s, i) ->
+      trstmt s (* semantic check is alreay done *)
+    | Structdefn(id, id_ty_list, s, i) ->
+      trstmt s
     | _ -> () 
 
   in trstmt
@@ -972,6 +1004,6 @@ let rec trans_stmt : var_env -> str_env -> Ast.stmt -> exp_and_prop_ret =
 
 
 let check s = 
-  let glb_senv = (check_def empty s) in 
+  let _ = (check_def empty s) in 
   check_init s
   (*let (exp, _) = trans_stmt Env.base_venv glb_senv s in exp*)
