@@ -597,7 +597,7 @@ let rec trans_stmt : status -> var_env -> str_env -> stmt -> unit =
   let glb_senv = (check_def empty s) in 
   check_init s;
   trans_stmt Global empty glb_senv s;
-  ignore (final !code_frag)
+  ignore (get_final_mimple ())
   (*let (exp, _) = trans_stmt Env.base_venv glb_senv s in exp*)
       
 

@@ -53,7 +53,6 @@ and const = [
 
  and condition = [
    | `Temp of Temp.t
-   | `Const of const
    | `Rel of intermediate * relop * intermediate
  ]
 
@@ -80,3 +79,87 @@ and const = [
      | `Instance_field_ref(t, id) -> `Instance_field_ref(t, id)
      | `Static_field_ref(id) -> `Static_field_ref(id)
 
+
+let intermediate_to_rvalue = 
+  function 
+    | `Temp(t) -> `Temp(t) 
+    | `Const(c) -> `Const(c)
+
+let string_of_const : const -> string = 
+  function
+    | `Int_const(num) -> string_of_int num 
+    | `Null_const -> "NULL"
+
+
+let rec string_of_value : rvalue -> string = 
+  function 
+    | `Temp(t) -> string_of_temp t 
+    | `Const(c) -> string_of_const c
+    | `Expr(expr) -> string_of_expr expr 
+    | `Array_ref(`Temp(t), i) -> 
+      string_of_temp t ^ "[" ^ string_of_value (intermediate_to_rvalue i) ^ "]"
+    | `Instance_field_ref(`Temp(t), id) -> 
+      string_of_temp t ^ "." ^ Symbol.name id 
+    | `Static_field_ref(id) -> 
+      Symbol.name id 
+
+and string_of_stmt : stmt -> string = 
+  function 
+    | `Assign(var, rvalue) -> 
+      "  " ^ string_of_value (var_to_rvalue var) ^ " = " ^ string_of_value rvalue 
+    | `Identity(t, id_value) -> 
+      "  " ^ string_of_value (intermediate_to_rvalue t) ^ " := " ^ string_of_identity_value id_value 
+    | `Label(l) -> 
+      string_of_label l ^ ":"
+    | `Goto(l) -> 
+      "  goto " ^ string_of_label l 
+    | `If(`Temp(t), l) -> 
+      "if " ^ string_of_temp t ^ " goto " ^ string_of_label l 
+    | `If(`Rel(_) as rexpr, l) -> 
+      "if " ^ string_of_expr rexpr ^ " goto " ^ string_of_label l
+    | `Static_invoke(l, i_list) as expr -> 
+      string_of_expr expr 
+    | `Ret(i) -> 
+      "return " ^ string_of_value (intermediate_to_rvalue i) 
+    | `Ret_void -> 
+      "return"
+    | `Nop -> ""
+
+
+and string_of_expr : expr -> string = 
+  function 
+    | `Bin(i1, bop, i2) -> 
+      string_of_value (intermediate_to_rvalue i1) ^ string_of_bop bop ^ string_of_value (intermediate_to_rvalue i2) 
+    | `Rel(i1, rop, i2) -> 
+      string_of_value (intermediate_to_rvalue i1) ^ string_of_rop rop ^ string_of_value (intermediate_to_rvalue i2) 
+    | `Static_invoke(l, i_list) -> 
+      string_of_label l ^ "(" ^ string_of_intermediate_list i_list
+    | `Alloc(i) -> 
+      "alloc(" ^ string_of_value (intermediate_to_rvalue i) ^ ")"
+
+and string_of_identity_value : identity_value -> string = 
+  function
+    | `Parameter_ref(num) -> 
+      "@P" ^ string_of_int num
+
+and string_of_bop : binop -> string = 
+  function 
+    | `Plus -> " + "
+    | `Times -> " * "
+    | `Minus -> " - "
+    | `Div -> " / "
+
+and string_of_rop : relop -> string = 
+  function 
+    | `Eq -> " == "
+    | `Lt -> " < "
+    | `Gt -> " > "
+    | `And -> " && "
+    | `Or -> " || "
+
+and string_of_intermediate_list : intermediate list -> string = 
+  function 
+    | [] -> ")"
+    | [x] -> string_of_value (intermediate_to_rvalue x) ^ ")"
+    | x :: xl -> string_of_value (intermediate_to_rvalue x) ^ ", " 
+                 ^ string_of_intermediate_list xl
