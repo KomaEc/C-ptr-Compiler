@@ -3,6 +3,8 @@ open Ast.Util
 open Parser 
 open Printf 
 open Lexing
+
+open Mimple
 open Lexer
 open Printer
 open Sement

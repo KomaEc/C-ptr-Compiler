@@ -232,10 +232,16 @@ compexp :
   | i=NEW; t=varty                                { A.Alloc(t,i)}
   ;
 
+  (* TODO: only one-dimensional new is allowed *)
 array_alloc : 
-  | LBRACK; e=exp; RBRACK                         { e }
-  | e1=array_alloc; LBRACK; e=exp; RBRACK         { A.Bin(e1, A.Times, e, dummyinfo) }
+  | t=array_alloc_prefix; LBRACK; e=exp; RBRACK   { A.ArrayAlloc(t, e, A.Util.extract_info_exp e) }
   ;
+
+array_alloc_prefix : 
+  | t=simpty                                      { t } 
+  | t=array_alloc_prefix; LBRACK; RBRACK          { A.ArrayTy(t) } 
+  ;
+  
 
 rev_arg_list : 
   | e=exp                                         { [e] }

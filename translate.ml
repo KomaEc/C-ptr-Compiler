@@ -1,9 +1,9 @@
-open Ir_3addr
 
-type exp = unit
+open Mimple
 
 
-let code_frag : Ir_3addr.stmt list ref = ref [] 
 
-let emit : Ir_3addr.stmt -> unit =
+let code_frag : prog ref = ref [] 
+
+let emit : stmt -> unit =
   fun s -> code_frag := s :: !code_frag

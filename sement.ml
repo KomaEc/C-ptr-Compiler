@@ -19,21 +19,22 @@ exception Alloc_Non_Struct of info
 exception Type_Var_Misuse of info
 exception Not_Proper_Ret of info 
 exception Null_Reference of info
+exception Ignore_Non_Void of info
 
 
 module type env = sig 
 
   type ty
-  type entry = Var of ty | Func of ty list * ty
-  (* struct env, maps field name to its type and offset *)
-  val base_senv : (Symbol.t, ty * int) Hashtbl.t Symbol.table
+  type entry = Local of ty | Parameter of int * ty | Global of ty | Func of ty list * ty 
+  (* struct env, maps field name to its type and offset and the total size *)
+  val base_senv : (int * (Symbol.t, ty * int) Hashtbl.t) Symbol.table
   (* variable env, maps vars to types *)
   val base_venv : entry Symbol.table
 end
 
 module Env : env with type ty = Ast.ty = struct 
   type ty = Ast.ty
-  type entry = Var of ty | Func of ty list * ty
+  type entry = Local of ty | Parameter of int * ty | Global of ty | Func of ty list * ty 
   let base_senv = Symbol.empty 
 
   let base_venv = 
@@ -45,7 +46,7 @@ type def_bind =
   | Vardef | Fundef of bool ref | Strucdef of bool ref * (Symbol.t, Ast.ty * int) Hashtbl.t
 
 type def_env = def_bind Symbol.table 
-type str_env = (Symbol.t, Ast.ty * int) Hashtbl.t Symbol.table
+type str_env = (int * (Symbol.t, Ast.ty * int) Hashtbl.t) Symbol.table
 type var_env = Env.entry Symbol.table 
 
 (**  check function declaration and variable declaration 
@@ -105,8 +106,8 @@ let rec check_def : def_env -> Ast.stmt -> str_env = fun def_env -> function
                              List.iter (fun (id,t) ->
                                         (match t with 
                                         | NameTy(tid) -> (try ignore (lookup tid def_env) with Not_found -> raise (Lack_Definition i))
-                                        | _ -> ()); Hashtbl.add tbl id (t, !off_set); off_set := !off_set + 8)
-                             fl; enter id tbl (check_def def_env s) end
+                                        | _ -> ()); Hashtbl.add tbl id (t, !off_set); incr off_set;)
+                             fl; enter id (!off_set + 1, tbl) (check_def def_env s) end
     with Not_found -> 
       let tbl = Hashtbl.create 20 in 
       let def_env' = enter id (Strucdef(ref true, tbl)) def_env in
@@ -114,8 +115,8 @@ let rec check_def : def_env -> Ast.stmt -> str_env = fun def_env -> function
       List.iter (fun (id,t) -> 
                 (match t with
                 | NameTy(tid) -> (try ignore (lookup tid def_env') with Not_found -> raise(Lack_Definition i))
-                | _ -> ()); Hashtbl.add tbl id (t, !off_set); off_set := !off_set + 8)
-                fl; enter id tbl (check_def def_env' s) )
+                | _ -> ()); Hashtbl.add tbl id (t, !off_set); incr off_set;)
+                fl; enter id (!off_set + 1, tbl) (check_def def_env' s) )
   | Nop -> empty
 and check_id_def id i def_env : unit =
   let _ = lookup id def_env in raise (Duplicated_Definition i)
@@ -199,6 +200,535 @@ and def id = function
   | Fundefn(_,_,_,_,s,_) -> def id s 
   | _ -> false
 
+
+(* calculate the offset of array. 
+ * for struct, 8 bytes per field. The offset is in glb_senv *)
+
+
+let size_of_ty : str_env -> ty -> int = 
+  fun glb_senv -> function 
+  | NameTy(tid) -> 8(* ?? should be an address! lookup tid glb_senv |> fst |> ( * ) 8 *)
+  | ArrayTy(_) -> 8 (* size of <type>[] equals to the size of a loc *)
+  | Int -> 4 
+  | Bool -> 1
+  | _ -> -1
+
+
+
+
+
+
+let rec trans_stmt : var_env -> str_env -> stmt -> unit = 
+  fun venv glb_senv -> 
+
+  let module TranslateHelper = 
+    struct
+      type result_of_trans_exp = 
+        | Ex of Mimple.rvalue 
+        | Cx of (Temp.label -> Temp.label -> Mimple.rvalue)
+    end in
+
+
+  let rec trvar : var -> Mimple.var * ty * int = function 
+    | SimpVar(id, i) -> 
+      begin 
+        match lookup id venv with 
+          | Env.Local(ty) ->  
+            let t = newtemp ~hint:id () in 
+            (`Temp(t), ty, size_of_ty glb_senv ty)
+          | Env.Parameter(pos, ty) -> 
+            let t = newtemp () in 
+            let () = emit (`Identity(`Temp(t), `Parameter_ref(pos))) in 
+            (`Temp(t), ty, size_of_ty glb_senv ty) 
+          | Env.Global(ty) -> 
+            (`Static_field_ref(id), ty, size_of_ty glb_senv ty) 
+          | _ -> assert false
+      end 
+    | FieldVar(var, fname, i) -> 
+      let (var, ty, _) = trvar var in 
+      let size = 
+        begin 
+          match ty with 
+            | NameTy(tid) ->
+              let (_, tbl) = lookup tid glb_senv in 
+              begin
+                try Hashtbl.find tbl fname |> snd 
+                with Not_found -> raise (No_Fieldname i) 
+              end 
+            | _ -> raise (Not_Struct i) 
+        end in 
+      begin 
+        match var with 
+          | `Temp(t) -> (`Instance_field_ref(`Temp(t), fname), ty, size)
+          | _ as var -> 
+            let t' = newtemp () in 
+            let () = emit (`Assign(`Temp(t'), Mimple.var_to_rvalue var)) in 
+            (`Temp(t'), ty, size)
+      end 
+    | SubscriptVar(var, expr, i) ->  
+      let (var, ty, size) = trvar var in 
+      let ty = begin 
+                 match ty with 
+                   | ArrayTy(ty) -> ty 
+                   | _ -> raise (Ill_Typed i)
+               end in
+      let size = size_of_ty glb_senv ty in
+      let (rvalue, ty') = trexpr expr in 
+      if not (ty' = Int) then raise (Ill_Typed i)
+      else
+      let t = (* tempory that stores var *)
+        begin
+          match var with 
+            | `Temp(t) -> t 
+            | _ as var -> 
+              let t' = newtemp () in 
+              let () = emit (`Assign(`Temp(t'), Mimple.var_to_rvalue var)) in 
+              t'
+        end in 
+      let inter = construct_result rvalue in 
+      (`Array_ref(`Temp(t), inter), ty, size)
+
+  and construct_result : Mimple.rvalue -> Mimple.intermediate = function 
+    | `Temp(t) -> `Temp(t) 
+    | `Const(c) -> `Const(c) 
+    | _ as rvalue -> 
+      let t = newtemp () in 
+      let () = emit (`Assign(`Temp(t), rvalue)) in 
+      `Temp(t) 
+  
+  and check_int : exp -> Mimple.rvalue = fun e -> 
+    let (t, ty) = trexpr e in 
+    begin 
+      match ty with 
+        | Int -> t 
+        | _ -> raise (Ill_Typed (extract_info_exp e))
+    end
+  
+  and check_bool : exp -> Mimple.rvalue = fun e -> 
+    let (t, ty) = trexpr e in 
+    begin 
+      match ty with 
+        | Bool -> t 
+        | _ -> raise (Ill_Typed (extract_info_exp e))
+    end
+  
+  and construct_int_bin_int : exp -> binop -> exp -> info -> Mimple.rvalue * ty = fun expr1 bop expr2 i -> 
+    let t1 = check_int expr1 |> construct_result in 
+    let t2 = check_int expr2 |> construct_result in 
+    let op = 
+      begin 
+        match bop with 
+          | Plus -> `Plus
+          | Minus -> `Minus
+          | Times -> `Times
+          | Div -> `Div
+          | _ -> assert false
+      end in 
+    (`Expr(`Bin(t1, op, t2)), Int)
+
+  and construct_int_bin_bool : exp -> binop -> exp -> info -> Mimple.rvalue * ty = fun expr1 bop expr2 i -> 
+    let t1 = check_int expr1 |> construct_result in 
+    let t2 = check_int expr2 |> construct_result in 
+    let op = 
+      begin 
+        match bop with 
+          | Lt -> `Lt 
+          | Gt -> `Gt 
+          | _ -> assert false
+      end in 
+    (`Expr(`Rel(t1, op, t2)), Bool)
+
+  and construct_bool_bin_bool : exp -> binop -> exp -> info -> Mimple.rvalue * ty = fun expr1 bop expr2 i -> 
+    let t1 = check_bool expr1 |> construct_result in 
+    let t2 = check_bool expr2 |> construct_result in 
+    let op = 
+      begin 
+        match bop with 
+          | And -> `And 
+          | Or -> `Or
+          | _ -> assert false
+      end in 
+    (`Expr(`Rel(t1, op, t2)), Bool)
+
+  and trexpr : exp -> Mimple.rvalue * ty = function 
+    | Intconst(num, i) -> (`Const(`Int_const(num)), Int) 
+    | True(i) -> (`Const(`Int_const(1)), Bool) 
+    | False(i) -> (`Const(`Int_const(0)), Bool) 
+    | Var(var) -> 
+      let (var, ty, _) = trvar var in 
+      (Mimple.var_to_rvalue var, ty)
+    | Bin(expr1, Plus, expr2, i) -> 
+      construct_int_bin_int expr1 Div expr2 i
+    | Bin(expr1, Minus, expr2, i) -> 
+      construct_int_bin_int expr1 Div expr2 i
+    | Bin(expr1, Times, expr2, i) -> 
+      construct_int_bin_int expr1 Div expr2 i
+    | Bin(expr1, Div, expr2, i) -> 
+      construct_int_bin_int expr1 Div expr2 i
+    | Bin(expr1, Lt, expr2, i) -> 
+      construct_int_bin_bool expr1 Lt expr2 i 
+    | Bin(expr1, Gt, expr2, i) -> 
+      construct_int_bin_bool expr1 Lt expr2 i 
+    | Bin(expr1, Eq, expr2, i) -> 
+      let (i1, ty1) = trexpr expr1 in 
+      let (i2, ty2) = trexpr expr2 in 
+        if not (ty1 = ty2) then raise (Ill_Typed i)
+        else let t1 = construct_result i1 in 
+             let t2 = construct_result i2 in 
+              (`Expr(`Rel(t1, `Eq, t2)), Bool) 
+    | Bin(expr1, bop, expr2, i) -> 
+      construct_bool_bin_bool expr1 bop expr2 i 
+    | Un(_, expr, i) -> 
+      let rvalue = check_bool expr in 
+      let t = construct_result rvalue in 
+      (`Expr(`Bin(`Const(`Int_const(1)), `Minus, t)), Bool)
+    | App(id, expr_list, i) -> 
+      let (rval_list, ty_list) = List.map trexpr expr_list |> List.split in 
+      let t_list = List.map construct_result rval_list in 
+      let l = newlabel ~hint:id () in
+      begin 
+        match lookup id venv with 
+          | Env.Func(ty_list', ty) -> 
+            begin
+              try begin 
+                List.iter2 
+                  (fun ty' ty -> if ty' = ty then () else raise (Ill_Typed i)) 
+                    ty_list' ty_list;
+                begin 
+                  match ty with 
+                    | Void -> 
+                      let () = emit (`Static_invoke(l, t_list)) in 
+                      (`Temp(place_holder), Void)
+                    | _ as ty -> 
+                      (`Expr(`Static_invoke(l, t_list)), ty)
+                end
+              end
+              with Invalid_argument _ -> raise (Arity_Mismatched i)
+            end  
+          | _ -> raise (Not_Function i)
+      end 
+    | ArrayAlloc(ty, expr, i) -> 
+      let t = check_int expr |> construct_result in 
+      let size = size_of_ty glb_senv ty in 
+      let t' = newtemp () in 
+      let () = emit (`Assign(`Temp(t'), `Expr(`Bin(t, `Times, `Const(`Int_const(size)))))) in 
+      (`Expr(`Alloc(`Temp(t'))), ArrayTy(ty))
+    | Alloc(ty, i) -> 
+      let size = size_of_ty glb_senv ty in 
+      (`Expr(`Alloc(`Const(`Int_const(size)))), ty)
+    | Nil(i) -> 
+      (`Const(`Null_const), Any)
+    | Void_exp -> 
+      (`Temp(place_holder), Void)
+
+  and result_of_var : Mimple.var -> [ `Temp of Temp.t ] = function 
+    | `Temp(t) -> `Temp(t) 
+    | _ as var -> 
+      let t = newtemp () in 
+      let () = emit (`Assign(`Temp(t), Mimple.var_to_rvalue var)) in 
+      `Temp(t)
+
+  and cond_trexp : exp -> Temp.label -> Temp.label -> unit = fun exp lt lf -> 
+    begin 
+      match exp with 
+        | True(_) -> emit (`Goto lt) 
+        | False(_) -> emit (`Goto lf)
+        | Var(v) -> 
+          let (var, ty, _) = trvar v in 
+          begin
+            match ty with 
+              | Bool -> 
+                let `Temp(t) = result_of_var var in 
+                emit (`If(`Temp(t), lt));
+                emit (`Goto(lf))
+              | _ -> raise (Ill_Typed (extract_info_var v))
+          end
+        | Bin(expr1, And, expr2, _) -> 
+          let cond1 = cond_trexp expr1 in 
+          let cond2 = cond_trexp expr2 in 
+          let l = newlabel () in 
+          cond1 l lf;
+          let () = emit (`Label(l)) in
+          (* Note that we must emit here 
+           * The side effect is enlosed by a closure! *)
+          cond2 lt lf 
+        | Bin(expr1, Or, expr2, _) -> 
+          let cond1 = cond_trexp expr1 in 
+          let cond2 = cond_trexp expr2 in 
+          let l = newlabel () in 
+          cond1 lt l;
+          let () = emit (`Label(l)) in
+          cond2 lt lf 
+        | Bin(expr1, Lt, expr2, _) -> 
+          let t1 = check_int expr1 |> construct_result in 
+          let t2 = check_int expr2 |> construct_result in 
+          let () = emit (`If(`Rel(t1, `Lt, t2), lt)) in 
+          emit (`Goto lf)
+        | Bin(expr1, Gt, expr2, _) -> 
+          let t1 = check_int expr1 |> construct_result in 
+          let t2 = check_int expr2 |> construct_result in 
+          let () = emit (`If(`Rel(t1, `Gt, t2), lt)) in 
+          emit (`Goto lf)
+        | Bin(expr1, Eq, expr2, i) -> 
+          let (i1, ty1) = trexpr expr1 in 
+          let (i2, ty2) = trexpr expr2 in 
+          if not (ty1 = ty2) then raise (Ill_Typed i)
+          else let t1 = construct_result i1 in 
+               let t2 = construct_result i2 in 
+               let () = emit (`If(`Rel(t1, `Gt, t2), lt)) in 
+               emit (`Goto lf)
+        | Un(_, expr, _) -> 
+          cond_trexp expr lf lt 
+        | App(id, expr_list, i) -> 
+            let (rval_list, ty_list) = List.map trexpr expr_list |> List.split in 
+            let t_list = List.map construct_result rval_list in 
+            let l = newlabel ~hint:id () in
+            begin 
+              match lookup id venv with 
+                | Env.Func(ty_list', ty) -> 
+                  begin
+                    try 
+                      begin 
+                        List.iter2 
+                          (fun ty' ty -> if ty' = ty then () else raise (Ill_Typed i)) 
+                            ty_list' ty_list;
+                        begin 
+                          match ty with 
+                            | Bool -> 
+                              let t = newtemp() in 
+                              let () = emit (`Assign(`Temp(t), `Expr(`Static_invoke(l, t_list)))) in 
+                              let () = emit (`If(`Temp(t), lt)) in 
+                              emit (`Goto lf)
+                            | _ -> raise (Ill_Typed i)
+                        end
+                      end
+                    with Invalid_argument _ -> raise (Arity_Mismatched i)
+                  end  
+                | _ -> raise (Not_Function i)
+            end 
+        | _ -> raise (Ill_Typed (extract_info_exp exp))
+          
+    end 
+  
+  (* TODO : check proper return *)
+  and trstmt : stmt -> unit = function 
+    | Assign(var, expr, i) -> 
+      let (var, ty, _) = trvar var in 
+      let (rvalue, ty') = trexpr expr in 
+      begin 
+        match ty = ty' with 
+          | true -> 
+            emit (`Assign(var, rvalue)) 
+          | _ -> raise (Ill_Typed i)
+      end 
+    | If(expr, s, Some(s'), i) -> 
+      let cond = cond_trexp expr in 
+      let l1 = newlabel () in 
+      let l2 = newlabel () in 
+      let () = cond l1 l2 in 
+      let () = emit (`Label(l1)) in 
+      let () = trstmt s in 
+      let () = emit (`Label(l2)) in 
+      trstmt s
+    | While(expr, s, i) -> 
+      let cond = cond_trexp expr in 
+      let l1 = newlabel () in
+      let l2 = newlabel () in 
+      let l3 = newlabel () in 
+      let () = emit (`Label(l1)) in 
+      let () = cond l2 l3 in 
+      let () = emit (`Label(l2)) in 
+      let () = trstmt s in 
+      emit (`Label(l3))
+    | Return(Void_exp, _) -> 
+      emit `Ret_void 
+    | Return(expr, i) ->
+      let (rvalue, _) = trexpr expr in 
+      emit (`Ret(construct_result rvalue))
+    | Exp(expr, i) -> 
+      let (rvalue, ty) = trexpr expr in 
+      begin 
+        match ty with 
+          | Void -> () 
+          | _ -> raise (Ignore_Non_Void i)
+      end
+    | Seq(stmt_list, i) ->
+      List.iter trstmt stmt_list 
+    | _ -> () 
+
+  in trstmt
+      
+
+      
+    
+
+      
+    
+(*
+
+
+
+(* TODO : change the result type into Mimple.var *)
+and trans_var : var_env -> str_env -> var -> [ `Temp of Temp.t ] * ty = 
+  fun venv glb_senv -> 
+    let rec trvar : var -> [ `Temp of Temp.t ] * ty * int = function 
+    | SimpVar(id, i) -> 
+      (match lookup id venv with 
+      | Env.Var(ty) -> let t = newtemp ~hint:id () in 
+                       (`Temp(t), ty, size_of_ty glb_senv ty)
+      | _ -> assert false)
+    | FieldVar(var, id, i) -> 
+      let (t, ty, _) = trvar var in 
+      let size = (match ty with 
+              | NameTy(tid) -> 
+                let (_, tbl) = lookup tid glb_senv in 
+                (try Hashtbl.find tbl id |> snd
+                with Not_found -> raise (No_Fieldname i))
+              | _ -> raise (Not_Struct i)) in
+      let t' = `Temp(newtemp ()) in 
+      let () = emit (`Assign(t', `Instance_field_ref(t, id))) in 
+      (t', ty, size) (* Should've return the field directly *)
+    | SubscriptVar(var, e, i) -> (* Java-style array, don't need to turn it 
+                                  * into one-dimensional array *)
+      let (t, ty, size) = trvar var in 
+      let (t', ty') = trans_exp venv glb_senv e in
+      if not (ty' = Int) then raise (Ill_Typed i)
+      else
+      let t'' = newtemp () in 
+      let () = emit (`Assign(`Temp(t''), `Expr(`Bin(t', `Times, `Const(`Int_const(size)))))) in
+      (`Temp(place_holder), Void, -1) (* Modify this *)
+    in fun var -> let (t, ty, _) = trvar var in (t, ty)
+
+and trans_exp : var_env -> str_env -> exp -> Mimple.intermediate * ty = 
+  fun venv glb_senv -> 
+  let rec check_int : exp -> Mimple.intermediate = fun e -> 
+    let (t, ty) = trexp e in 
+    (match ty with 
+      Int -> t 
+    | _ -> raise (Ill_Typed (extract_info_exp e))) 
+  
+  and check_bool : exp -> Mimple.intermediate = fun e -> 
+    let (t, ty) = trexp e in 
+    (match ty with 
+      Bool -> t 
+    | _ -> raise (Ill_Typed (extract_info_exp e))) 
+
+(* Change return type to deal with conditional expr
+ * maybe return Mimple.rvalue instead? *)
+  and trexp : exp -> Mimple.intermediate * ty = function 
+  | Intconst(num, _) -> (`Const(`Int_const(num)), Int) 
+  | True(_) -> (`Const(`Int_const(1)), Bool)
+  | False(_) -> (`Const(`Int_const(0)), Bool)
+  | Var(var) -> let (`Temp(t), ty) = trans_var venv glb_senv var in 
+                (`Temp(t), ty) 
+  | Bin(e1, Plus, e2, i) -> 
+    let t1 = check_int e1 in 
+    let t2 = check_int e2 in 
+    let t3 = newtemp () in 
+    let () = emit (`Assign(`Temp(t3), `Expr(`Bin(t1, `Plus, t2)))) in 
+    (`Temp(t3), Int)
+  | Bin(e1, Minus, e2, i) -> 
+    let t1 = check_int e1 in 
+    let t2 = check_int e2 in 
+    let t3 = newtemp () in 
+    let () = emit (`Assign(`Temp(t3), `Expr(`Bin(t1, `Minus, t2)))) in 
+    (`Temp(t3), Int)
+  | Bin(e1, Times, e2, i) -> 
+    let t1 = check_int e1 in 
+    let t2 = check_int e2 in 
+    let t3 = newtemp () in 
+    let () = emit (`Assign(`Temp(t3), `Expr(`Bin(t1, `Times, t2)))) in 
+    (`Temp(t3), Int)
+  | Bin(e1, Div, e2, i) -> 
+    let t1 = check_int e1 in 
+    let t2 = check_int e2 in 
+    let t3 = newtemp () in 
+    let () = emit (`Assign(`Temp(t3), `Expr(`Bin(t1, `Div, t2)))) in 
+    (`Temp(t3), Int)
+  | Bin(e1, Lt, e2, i) -> 
+    let t1 = check_int e1 in 
+    let t2 = check_int e2 in 
+    let t3 = newtemp () in 
+    let () = emit (`Assign(`Temp(t3), `Expr(`Rel(t1, `Lt, t2)))) in 
+    (`Temp(t3), Bool)
+  | Bin(e1, Gt, e2, i) -> 
+    let t1 = check_int e1 in 
+    let t2 = check_int e2 in 
+    let t3 = newtemp () in 
+    let () = emit (`Assign(`Temp(t3), `Expr(`Rel(t1, `Gt, t2)))) in 
+    (`Temp(t3), Bool)
+  | Bin(e1, And, e2, i) -> 
+    let t1 = check_bool e1 in 
+    let t2 = check_bool e2 in 
+    let t3 = newtemp () in 
+    let () = emit (`Assign(`Temp(t3), `Expr(`Rel(t1, `And, t2)))) in 
+    (`Temp(t3), Bool)
+  | Bin(e1, Eq, e2, i) -> 
+    let (t1, ty1) = trexp e1 in 
+    let (t2, ty2) = trexp e2 in 
+    (match ty1 = ty2 with 
+    | true -> (* polish here *)
+      let t3 = newtemp () in
+      let () = emit (`Assign(`Temp(t3), `Expr(`Rel(t1, `Eq, t2)))) in 
+      (`Temp(t3), Bool)
+    | _ -> raise (Ill_Typed i))
+  | Un(_, e, i) -> 
+    let t = check_bool e in 
+    let t' = newtemp () in 
+    let () = emit (`Assign(`Temp(t'), `Expr(`Bin(`Const(`Int_const 1), `Minus, t)))) in 
+    (`Temp(t'), Bool)
+  | App(id, el, i) -> 
+    (try match lookup id venv with 
+         | Env.Var(ty) -> raise (Not_Function i)
+         | Env.Func(tyl, ty) -> 
+           let tl = 
+           (try List.map2 
+                (fun e ty -> 
+                let (t, ty') = trexp e in 
+                if not (ty = ty') then raise (Ill_Typed i) else t) 
+                el tyl
+            with Invalid_argument(_) -> raise (Arity_Mismatched i)) in
+            (match ty with 
+            | Ast.Void ->  
+              let l = newlabel ~hint:id () in 
+              let () = emit (`Static_invoke(l, tl)) in 
+              (`Temp(place_holder), Void)
+            | _ -> 
+              let l = newlabel ~hint:id () in 
+              let t0 = newtemp () in 
+              let () = emit (`Assign(`Temp(t0), `Expr(`Static_invoke(l, tl)))) in 
+              (`Temp(t0), ty))
+    with Not_found -> assert false)
+  | ArrayAlloc(ty, e, i) -> 
+    let t = check_int e in
+    let t' = newtemp () in
+    let size = size_of_ty glb_senv ty in 
+    let () = emit (`Assign(`Temp(t'), `Expr(`Bin(`Const(`Int_const(size)), `Times, t)))) in 
+    let t'' = newtemp () in 
+    let () = emit (`Assign(`Temp(t''), `Expr(`Alloc(`Temp(t'))))) in 
+    (`Temp(t''), ArrayTy(ty))
+  | Alloc(ty, i) -> 
+    let () = (match ty with 
+    | NameTy(_) -> () 
+    | _ -> raise (Alloc_Non_Struct i)) in
+    let size = size_of_ty glb_senv ty in 
+    let t = newtemp () in 
+    let () = emit (`Assign(`Temp(t), `Expr(`Alloc(`Const(`Int_const(size)))))) in 
+    (`Temp(t), ty)
+  | Nil(i) -> (`Const(`Null_const), Any)
+  | _ -> (`Const(`Null_const), Void)
+  in trexp 
+
+*)
+      
+
+
+
+
+
+
+
+(*
 
 
 type exp_and_ty = { exp : Ir_3addr.var; ty : Ast.ty }
@@ -332,7 +862,7 @@ let trans_exp : var_env -> str_env -> Ast.exp -> exp_and_ty =
     | FieldVar(var, fname, i) -> 
       let { exp = t; ty = ty } = trvar var in 
       (match ty with 
-      | NameTy(id) -> let tbl = lookup id glb_senv in 
+      | NameTy(id) -> let (size, tbl) = lookup id glb_senv in 
                       (match Hashtbl.find_opt tbl fname with 
                       | Some(ty, _) -> { exp = place_holder; ty = ty } (* Problematic *)
                       | None -> raise (No_Fieldname i))
@@ -361,7 +891,7 @@ let rec trans_stmt : var_env -> str_env -> Ast.stmt -> exp_and_prop_ret =
     | FieldVar(var, fname, i) -> 
       let { exp = t; ty = ty } = trvar var in 
       (match ty with 
-      | NameTy(id) -> let tbl = lookup id glb_senv in 
+      | NameTy(id) -> let (size, tbl) = lookup id glb_senv in 
                       (match Hashtbl.find_opt tbl fname with 
                       | Some(ty, _) -> { exp = Temp.place_holder; ty = ty } (* Problematic *)
                       | None -> raise (No_Fieldname i))
@@ -434,8 +964,14 @@ let rec trans_stmt : var_env -> str_env -> Ast.stmt -> exp_and_prop_ret =
   fun s -> trstmt s
 
 
+*)
+
+
+
+
+
 
 let check s = 
   let glb_senv = (check_def empty s) in 
-  check_init s;
-  let (exp, _) = trans_stmt Env.base_venv glb_senv s in exp
+  check_init s
+  (*let (exp, _) = trans_stmt Env.base_venv glb_senv s in exp*)

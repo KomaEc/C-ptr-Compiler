@@ -21,15 +21,20 @@ and const = [
 
  and var = [
    | `Temp of Temp.t 
-   | `Array_ref of intermediate * intermediate
-   | `Instance_field_ref of intermediate * Symbol.t
+   | `Array_ref of [ `Temp of Temp.t ] * intermediate
+   | `Instance_field_ref of [` Temp of Temp.t ] * Symbol.t
+   | `Static_field_ref of Symbol.t
  ]
 
  and label = Temp.label 
 
  and rvalue = [
-   | `Array_ref of intermediate * intermediate
+   | `Temp of Temp.t
+   | `Const of const
    | `Expr of expr
+   | `Array_ref of [ `Temp of Temp.t ] * intermediate
+   | `Instance_field_ref of [ `Temp of Temp.t ] * Symbol.t
+   | `Static_field_ref of Symbol.t
  ]
 
  and prog = stmt list 
@@ -47,13 +52,16 @@ and const = [
  ]
 
  and condition = [
-   | `Rel of intermediate * binop * intermediate
+   | `Temp of Temp.t
+   | `Const of const
+   | `Rel of intermediate * relop * intermediate
  ]
 
  and expr = [
    | `Bin of intermediate * binop * intermediate
-   | `Rel of intermediate * binop * intermediate
+   | `Rel of intermediate * relop * intermediate
    | `Static_invoke of label * intermediate list
+   | `Alloc of intermediate
  ]
 
  and identity_value = [
@@ -63,3 +71,12 @@ and const = [
  and binop = [ `Plus | `Minus | `Times | `Div ]
 
  and relop = [ `Eq | `Lt | `Gt | `And | `Or ]
+
+
+ let var_to_rvalue = 
+   function 
+     | `Temp(t) -> `Temp(t) 
+     | `Array_ref(t, i) -> `Array_ref(t, i)
+     | `Instance_field_ref(t, id) -> `Instance_field_ref(t, id)
+     | `Static_field_ref(id) -> `Static_field_ref(id)
+
