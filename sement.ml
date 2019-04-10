@@ -578,12 +578,13 @@ let rec trans_stmt : status -> var_env -> str_env -> stmt -> unit =
                  (fun i ty -> entry_list_ref := Env.Parameter(i, ty) :: !entry_list_ref)
                    tyl in 
       let entry_list = List.rev !entry_list_ref in 
-      let venv' = List.fold_left2 
+      let venv' = enter id (Env.Func(tyl, ty)) venv in
+      let venv'' = List.fold_left2 
                     (fun acc id entry -> enter id entry acc)
                       venv id_list entry_list in 
-      let () = trans_stmt Local venv' glb_senv inner_s in 
+      let () = trans_stmt Local venv'' glb_senv inner_s in 
       let () = emit `Nop in (* TODO: maybe explicit FuncEnd instead? *)
-      trstmt s
+      trans_stmt Local venv' glb_senv s
     | Structdecl(id, s, i) ->
       trstmt s (* semantic check is alreay done *)
     | Structdefn(id, id_ty_list, s, i) ->
