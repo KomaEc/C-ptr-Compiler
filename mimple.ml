@@ -107,22 +107,24 @@ and string_of_stmt : stmt -> string =
   function 
     | `Assign(var, rvalue) -> 
       "  " ^ string_of_value (var_to_rvalue var) ^ " = " ^ string_of_value rvalue 
+      ^ ";\n"
     | `Identity(t, id_value) -> 
-      "  " ^ string_of_value (intermediate_to_rvalue t) ^ " := " ^ string_of_identity_value id_value 
+      "  " ^ string_of_value (intermediate_to_rvalue t) ^ " := " 
+      ^ string_of_identity_value id_value ^ ";\n"
     | `Label(l) -> 
-      string_of_label l ^ ":"
+      string_of_label l ^ ":\n"
     | `Goto(l) -> 
-      "  goto " ^ string_of_label l 
+      "  goto " ^ string_of_label l ^ ";\n"
     | `If(`Temp(t), l) -> 
-      "if " ^ string_of_temp t ^ " goto " ^ string_of_label l 
+      "  if " ^ string_of_temp t ^ " goto " ^ string_of_label l ^ ";\n"
     | `If(`Rel(_) as rexpr, l) -> 
-      "if " ^ string_of_expr rexpr ^ " goto " ^ string_of_label l
+      "  if " ^ string_of_expr rexpr ^ " goto " ^ string_of_label l ^ ";\n"
     | `Static_invoke(l, i_list) as expr -> 
-      string_of_expr expr 
+      "  " ^ string_of_expr expr ^ ";\n"
     | `Ret(i) -> 
-      "return " ^ string_of_value (intermediate_to_rvalue i) 
+      "  return " ^ string_of_value (intermediate_to_rvalue i) ^ ";\n"
     | `Ret_void -> 
-      "return"
+      "  return;\n"
     | `Nop -> ""
 
 
@@ -163,3 +165,7 @@ and string_of_intermediate_list : intermediate list -> string =
     | [x] -> string_of_value (intermediate_to_rvalue x) ^ ")"
     | x :: xl -> string_of_value (intermediate_to_rvalue x) ^ ", " 
                  ^ string_of_intermediate_list xl
+
+let print_prog : prog -> unit = 
+  List.iter 
+    (fun s -> string_of_stmt s |> print_endline)

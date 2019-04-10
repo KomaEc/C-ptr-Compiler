@@ -1,6 +1,6 @@
 int foo(int x, bool y, int z);
 bool bar();
-int main () {
+bool main () {
     int x = 2;
     int y = 1;
     int z = (x + 3) * (y - 5);
@@ -14,9 +14,10 @@ int main () {
         z = z + 2;
       }
     }
-    foo(x, y, z);
-    (z) = z;
-    (z);
+    int res = foo(x, true, z);
+    if (res > 1) {
+      z = z + 3;
+    }
     return (z <= 0 && x == 2) || z > 10;
 }
 

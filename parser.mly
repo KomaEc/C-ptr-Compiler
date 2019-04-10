@@ -228,7 +228,7 @@ compexp :
   | e1=exp; i=GEQ; e2=exp                         { A.Un(A.Not, A.Bin(e1,A.Lt,e2,i), i) }
   | e1=exp; i=NEQ; e2=exp                         { A.Un(A.Not, A.Bin(e1,A.Eq,e2,i), i) }
   | id=ID; LPAREN; al=arg_list; RPAREN            { let {v;i}=id in A.App(v,al,i) }
-  | NEW; t=simpty; e=array_alloc                  { A.ArrayAlloc(t,e,A.Util.extract_info_exp e) }
+  | NEW; e=array_alloc                            { e }
   | i=NEW; t=varty                                { A.Alloc(t,i)}
   ;
 

@@ -246,16 +246,16 @@ let rec trans_stmt : status -> var_env -> str_env -> stmt -> unit =
       end 
     | FieldVar(var, fname, i) -> 
       let (var, ty, _) = trvar var in 
-      let size = 
-        begin 
+      let (ty, size) = 
+        begin
           match ty with 
-            | NameTy(tid) ->
+            | NameTy(tid) -> 
               let (_, tbl) = lookup tid glb_senv in 
-              begin
-                try Hashtbl.find tbl fname |> snd 
-                with Not_found -> raise (No_Fieldname i) 
+              begin 
+                try Hashtbl.find tbl fname 
+                with Not_found -> raise (No_Fieldname i)
               end 
-            | _ -> raise (Not_Struct i) 
+            | _ -> raise (Not_Struct i)
         end in 
       begin 
         match var with 
@@ -264,7 +264,7 @@ let rec trans_stmt : status -> var_env -> str_env -> stmt -> unit =
             let t' = newtemp () in 
             let () = emit (`Assign(`Temp(t'), Mimple.var_to_rvalue var)) in 
             (`Temp(t'), ty, size)
-      end 
+      end
     | SubscriptVar(var, expr, i) ->  
       let (var, ty, size) = trvar var in 
       let ty = begin 
@@ -358,17 +358,17 @@ let rec trans_stmt : status -> var_env -> str_env -> stmt -> unit =
       let (var, ty, _) = trvar var in 
       (Mimple.var_to_rvalue var, ty)
     | Bin(expr1, Plus, expr2, i) -> 
-      construct_int_bin_int expr1 Div expr2 i
+      construct_int_bin_int expr1 Plus expr2 i
     | Bin(expr1, Minus, expr2, i) -> 
-      construct_int_bin_int expr1 Div expr2 i
+      construct_int_bin_int expr1 Minus expr2 i
     | Bin(expr1, Times, expr2, i) -> 
-      construct_int_bin_int expr1 Div expr2 i
+      construct_int_bin_int expr1 Times expr2 i
     | Bin(expr1, Div, expr2, i) -> 
       construct_int_bin_int expr1 Div expr2 i
     | Bin(expr1, Lt, expr2, i) -> 
       construct_int_bin_bool expr1 Lt expr2 i 
     | Bin(expr1, Gt, expr2, i) -> 
-      construct_int_bin_bool expr1 Lt expr2 i 
+      construct_int_bin_bool expr1 Gt expr2 i 
     | Bin(expr1, Eq, expr2, i) -> 
       let (i1, ty1) = trexpr expr1 in 
       let (i2, ty2) = trexpr expr2 in 
@@ -517,9 +517,11 @@ let rec trans_stmt : status -> var_env -> str_env -> stmt -> unit =
       let (var, ty, _) = trvar var in 
       let (rvalue, ty') = trexpr expr in 
       begin 
-        match ty = ty' with 
-          | true -> 
+        match (ty, ty') with 
+          | _ when ty = ty' -> 
             emit (`Assign(var, rvalue)) 
+          | (NameTy(tid), Any) -> 
+            emit (`Assign(var, rvalue))
           | _ -> raise (Ill_Typed i)
       end 
     | If(expr, s, Some(s'), i) -> 
@@ -594,10 +596,10 @@ let rec trans_stmt : status -> var_env -> str_env -> stmt -> unit =
 
 
   let check s = 
-  let glb_senv = (check_def empty s) in 
-  check_init s;
-  trans_stmt Global empty glb_senv s;
-  ignore (get_final_mimple ())
+    let glb_senv = (check_def empty s) in 
+    check_init s;
+    trans_stmt Global empty glb_senv s;
+    get_final_mimple ()
   (*let (exp, _) = trans_stmt Env.base_venv glb_senv s in exp*)
       
 
