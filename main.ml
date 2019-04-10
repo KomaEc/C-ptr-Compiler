@@ -65,8 +65,10 @@ let () =
           | None -> ());*)
           (*print_stmt "" (Seq(parse_with_error lexbuf, Support.Error.dummyinfo));*)
           let s = simplify (parse_with_error lexbuf) in 
+          print_endline "\nOriginal program: ";
           print_stmt "" s;
           print_newline();
+          print_endline "\nTranslating to Mimple...\n";
           let prog = check_with_error s in
           Mimple.print_prog prog;
           close_in inx
