@@ -107,7 +107,7 @@ let rec check_def : def_env -> Ast.stmt -> str_env = fun def_env -> function
                                         (match t with 
                                         | NameTy(tid) -> (try ignore (lookup tid def_env) with Not_found -> raise (Lack_Definition i))
                                         | _ -> ()); Hashtbl.add tbl id (t, !off_set); incr off_set;)
-                             fl; enter id (!off_set + 1, tbl) (check_def def_env s) end
+                             fl; enter id (!off_set, tbl) (check_def def_env s) end
     with Not_found -> 
       let tbl = Hashtbl.create 20 in 
       let def_env' = enter id (Strucdef(ref true, tbl)) def_env in
@@ -116,7 +116,7 @@ let rec check_def : def_env -> Ast.stmt -> str_env = fun def_env -> function
                 (match t with
                 | NameTy(tid) -> (try ignore (lookup tid def_env') with Not_found -> raise(Lack_Definition i))
                 | _ -> ()); Hashtbl.add tbl id (t, !off_set); incr off_set;)
-                fl; enter id (!off_set + 1, tbl) (check_def def_env' s) )
+                fl; enter id (!off_set, tbl) (check_def def_env' s) )
   | Nop -> empty
 and check_id_def id i def_env : unit =
   let _ = lookup id def_env in raise (Duplicated_Definition i)
@@ -207,7 +207,7 @@ and def id = function
 
 let size_of_ty : str_env -> ty -> int = 
   fun glb_senv -> function 
-  | NameTy(tid) -> 8(* ?? should be an address! lookup tid glb_senv |> fst |> ( * ) 8 *)
+  | NameTy(tid) -> lookup tid glb_senv |> fst |> ( * ) 8
   | ArrayTy(_) -> 8 (* size of <type>[] equals to the size of a loc *)
   | Int -> 4 
   | Bool -> 1
@@ -217,16 +217,12 @@ let size_of_ty : str_env -> ty -> int =
 
 type status = Local | Global
 
+(* TODO: correct the semantics of assignment:
+ * 1. primitive type : assignment by value
+ * 2. object type : assignment by reference *)
 
 let rec trans_stmt : status -> var_env -> str_env -> stmt -> unit = 
   fun st venv glb_senv -> 
-
-  let module TranslateHelper = 
-    struct
-      type result_of_trans_exp = 
-        | Ex of Mimple.rvalue 
-        | Cx of (Temp.label -> Temp.label -> Mimple.rvalue)
-    end in
 
 
   let rec trvar : var -> Mimple.var * ty * int = function 
@@ -261,21 +257,19 @@ let rec trans_stmt : status -> var_env -> str_env -> stmt -> unit =
         match var with 
           | `Temp(t) -> (`Instance_field_ref(`Temp(t), fname), ty, size)
           | _ as var -> 
-            let t' = newtemp () in 
+            let t' = newtemp () in (* The semantic is wrong. Object type should be assigned by reference *)
             let () = emit (`Assign(`Temp(t'), Mimple.var_to_rvalue var)) in 
-            (`Temp(t'), ty, size)
+            (`Instance_field_ref(`Temp(t'), fname), ty, size)
       end
     | SubscriptVar(var, expr, i) ->  
-      let (var, ty, size) = trvar var in 
+      let (var, ty', size) = trvar var in 
       let ty = begin 
-                 match ty with 
+                 match ty' with 
                    | ArrayTy(ty) -> ty 
                    | _ -> raise (Ill_Typed i)
                end in
       let size = size_of_ty glb_senv ty in
-      let (rvalue, ty') = trexpr expr in 
-      if not (ty' = Int) then raise (Ill_Typed i)
-      else
+      let rvalue = check_int expr in 
       let t = (* tempory that stores var *)
         begin
           match var with 
@@ -542,7 +536,8 @@ let rec trans_stmt : status -> var_env -> str_env -> stmt -> unit =
       let () = cond l2 l3 in 
       let () = emit (`Label(l2)) in 
       let () = trstmt s in 
-      emit (`Label(l3))
+      let () = emit (`Goto(l1)) in
+      emit (`Label(l3)) 
     | Return(Void_exp, _) -> 
       emit `Ret_void 
     | Return(expr, i) ->
