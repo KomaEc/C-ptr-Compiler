@@ -76,7 +76,9 @@ and field_signature = Symbol.t * ty
 
  and relop = [ `Eq | `Lt | `Gt | `And | `Or ]
 
- and prog = stmt list
+ and method_chunk = stmt list
+
+ and prog = method_chunk list
 
  (* TODO : add function chunk *)
 
@@ -124,7 +126,7 @@ and string_of_field_sig : field_signature -> string =
 and string_of_stmt : stmt -> string = 
   function 
     | `Temp_decl(`Temp(t), ty) -> 
-      "  " ^ string_of_ty ty ^ " " ^ string_of_temp t ^ ";"
+      "  " ^ string_of_ty ty ^ " " ^ string_of_temp t ^ ";\n"
     | `Assign(var, rvalue) -> 
       "  " ^ string_of_value (var_to_rvalue var) ^ " = " ^ string_of_value rvalue 
       ^ ";\n"
@@ -189,6 +191,15 @@ and string_of_immediate_list : immediate list -> string =
     | x :: xl -> string_of_value (immediate_to_rvalue x) ^ ", " 
                  ^ string_of_immediate_list xl
 
+let string_of_method : method_chunk -> string = 
+  List.fold_left 
+    (fun prev stmt -> 
+      prev ^ string_of_stmt stmt) ""
+
+let string_of_prog : prog -> string = 
+  List.fold_left
+    (fun prev method_chunk -> 
+      prev ^ string_of_method method_chunk) ""
+
 let print_prog : prog -> unit = 
-  List.iter 
-    (fun s -> string_of_stmt s |> print_string)
+  fun prog -> string_of_prog prog |> print_endline

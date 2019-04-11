@@ -6,7 +6,7 @@ open Lexing
 
 open Lexer
 open Printer
-open Sement
+open Semant_temp
 open Support.Error
 
 let print_position outx lexbuf = 
@@ -68,9 +68,9 @@ let () =
           print_endline "\nOriginal program: ";
           print_stmt "" s;
           print_newline();
-          print_endline "\nTranslating to Mimple...\n";
           let prog = check_with_error s in
-          Mimple.print_prog prog;
+          print_endline "\nTranslating to Mimple...\n";
+          Mimple_temp.print_prog prog;
           close_in inx
           )
   | _ -> fprintf stderr "Too many arguments! Expected 1\n"; exit(0)

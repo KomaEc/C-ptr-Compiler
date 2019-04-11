@@ -1,5 +1,5 @@
 
-open Mimple
+(* open Mimple *)
 open Types
 module M = Mimple_temp
 
@@ -37,22 +37,34 @@ let cur_local_def : (Temp.t * ty) list ref =
 let emit_local_def : Temp.t -> Ast.ty -> unit = 
   fun t ty -> 
     let open Ast in 
-    let ty = 
-      begin
-        match ty with 
-          | Int -> Primitive(`Int) 
-          | Bool -> Primitive(`Bool) 
-          | _ -> assert false (* Not yet implemented *) 
-      end in 
+    let ty = type_convert ty in
     cur_local_def := (t, ty) :: !cur_local_def
 
 
-let cur_function_chunk : M.stmt list ref = 
+let cur_method_chunk : M.stmt list ref = 
   ref []
 
 let emit_stmt : M.stmt -> unit = 
-  fun s -> cur_function_chunk := s :: !cur_function_chunk
+  fun s -> cur_method_chunk := s :: !cur_method_chunk
 
+
+
+let prog_frag : M.prog ref = ref []
+
+let end_function () = 
+  let decl_list = 
+    List.rev !cur_local_def 
+    |> List.map (fun (t, ty) -> `Temp_decl(`Temp(t), ty))
+    in 
+  let stmt_list = List.rev !cur_method_chunk in
+  let () = cur_local_def := [] in 
+  let () = cur_method_chunk := [] in
+  prog_frag := (decl_list @ stmt_list) :: !prog_frag
+
+let get_mimple () = 
+  List.rev !prog_frag
+
+(*
 let code_frag : prog ref = ref [] 
 
 let emit : stmt -> unit =
@@ -63,12 +75,4 @@ let emit : stmt -> unit =
 let final : prog -> prog = List.rev
 
 let get_final_mimple () = final !code_frag
-
-(* TODO : add [end_function] function, which 
- * emits each statement in cur_function_chunk and cur_local_def 
- * to the code_frag. Note that we don't need to reverse each 
- * chunk. After emission, the code fragment will be 
- * inverted *)
-
-
-let end_function () = ()
+*)

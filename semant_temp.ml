@@ -4,7 +4,7 @@ open Symbol
 open Support.Error
 open Translate
 open Temp
-module T = Types
+
 module M = Mimple_temp
 
 exception Duplicated_Definition of info 
@@ -110,7 +110,7 @@ let rec check_def : def_env -> Ast.stmt -> str_env = fun def_env -> function
              end
     with Not_found -> 
       let def_env' = enter id (Strucdef(ref true)) def_env in
-      let () = check_struct_entry def_env i fl in
+      let () = check_struct_entry def_env' i fl in
       enter id fl (check_def def_env' s)) 
   | Nop -> empty
 
@@ -454,7 +454,7 @@ let rec trans_stmt : status -> var_env -> str_env -> stmt -> unit =
           let cond2 = cond_trexp expr2 in 
           let l = newlabel () in 
           cond1 l lf;
-          let () = emit (`Label(l)) in
+          let () = emit_stmt (`Label(l)) in
           (* Note that we must emit here 
            * The side effect is enlosed by a closure! *)
           cond2 lt lf 
@@ -552,11 +552,16 @@ let rec trans_stmt : status -> var_env -> str_env -> stmt -> unit =
         emit_stmt `Ret_void 
       | Return(expr, i) -> 
         let (rvalue, ty) = trexpr expr in 
+        emit_stmt (`Ret(rvalue_to_immediate ty rvalue))
+      | Exp(expr, i) -> 
+        let (rvalue, ty) = trexpr expr in 
         begin
           match ty with
             | Void -> () 
             | _ -> raise (Ignore_Non_Void i)
         end
+      | Seq(stmt_list, i) -> 
+        List.iter trstmt stmt_list
       | Vardecl(id, ty, s, i) -> 
         begin
           match st with 
@@ -597,3 +602,8 @@ let rec trans_stmt : status -> var_env -> str_env -> stmt -> unit =
       | _ -> ()
   in trstmt
 
+let check s = 
+  let glb_senv =(check_def empty s) in 
+  let () = check_init s in 
+  let () = trans_stmt Global empty glb_senv s in 
+  get_mimple ()
