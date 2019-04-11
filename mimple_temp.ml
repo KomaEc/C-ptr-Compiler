@@ -10,12 +10,10 @@
  open Types
 
 
-type intermediate = [
+type immediate = [
   | `Const of const 
   | `Temp of Temp.t
 ]
-
-and temp_declaration = Temp.t * ty
 
 and const = [
   | `Null_const 
@@ -24,8 +22,8 @@ and const = [
 
  and var = [
    | `Temp of Temp.t 
-   | `Array_ref of intermediate * intermediate
-   | `Instance_field_ref of intermediate * field_signature
+   | `Array_ref of immediate * immediate
+   | `Instance_field_ref of immediate * field_signature
    | `Static_field_ref of Symbol.t
  ]
 
@@ -35,37 +33,39 @@ and const = [
    | `Temp of Temp.t
    | `Const of const
    | `Expr of expr
-   | `Array_ref of intermediate * intermediate
-   | `Instance_field_ref of intermediate * field_signature
+   | `Array_ref of immediate * immediate
+   | `Instance_field_ref of immediate * field_signature
    | `Static_field_ref of Symbol.t
  ]
 
-and method_signature = label * ty list * ty
+and method_signature = Symbol.t * ty list * ty
 
 and field_signature = Symbol.t * ty
 
  and stmt = [
+   | `Temp_decl of [ `Temp of Temp.t ] * ty
    | `Assign of var * rvalue
    | `Identity of [ `Temp of Temp.t ] * identity_value 
    | `Label of label 
    | `Goto of label 
    | `If of condition * label
-   | `Static_invoke of method_signature * intermediate list
-   | `Ret of intermediate 
+   | `Static_invoke of method_signature * immediate list
+   | `Ret of immediate 
    | `Ret_void
    | `Nop
  ]
 
  and condition = [
    | `Temp of Temp.t
-   | `Rel of intermediate * relop * intermediate
+   | `Rel of immediate * relop * immediate
  ]
 
  and expr = [
-   | `Bin of intermediate * binop * intermediate
-   | `Rel of intermediate * relop * intermediate
-   | `Static_invoke of method_signature * intermediate list
-   | `Alloc of intermediate
+   | `Bin of immediate * binop * immediate
+   | `Rel of immediate * relop * immediate
+   | `Static_invoke of method_signature * immediate list
+   | `New_expr of obj_type
+   | `New_array_expr of ty * immediate
  ]
 
  and identity_value = [
@@ -78,6 +78,8 @@ and field_signature = Symbol.t * ty
 
  and prog = stmt list
 
+ (* TODO : add function chunk *)
+
 
  let var_to_rvalue : var -> rvalue = 
    function 
@@ -87,7 +89,7 @@ and field_signature = Symbol.t * ty
      | `Static_field_ref(id) -> `Static_field_ref(id)
 
 
-let intermediate_to_rvalue : intermediate -> rvalue = 
+let immediate_to_rvalue : immediate -> rvalue = 
   function 
     | `Temp(t) -> `Temp(t) 
     | `Const(c) -> `Const(c)
@@ -104,9 +106,9 @@ let rec string_of_value : rvalue -> string =
     | `Const(c) -> string_of_const c
     | `Expr(expr) -> string_of_expr expr 
     | `Array_ref(i, i') -> 
-      string_of_value (intermediate_to_rvalue i) ^ "[" ^ string_of_value (intermediate_to_rvalue i') ^ "]"
+      string_of_value (immediate_to_rvalue i) ^ "[" ^ string_of_value (immediate_to_rvalue i') ^ "]"
     | `Instance_field_ref(i, fsig) -> 
-      string_of_value (intermediate_to_rvalue i) ^ "." ^ string_of_field_sig fsig
+      string_of_value (immediate_to_rvalue i) ^ "." ^ string_of_field_sig fsig
     | `Static_field_ref(id) -> 
       Symbol.name id 
 
@@ -121,6 +123,8 @@ and string_of_field_sig : field_signature -> string =
 
 and string_of_stmt : stmt -> string = 
   function 
+    | `Temp_decl(`Temp(t), ty) -> 
+      "  " ^ string_of_ty ty ^ " " ^ string_of_temp t ^ ";"
     | `Assign(var, rvalue) -> 
       "  " ^ string_of_value (var_to_rvalue var) ^ " = " ^ string_of_value rvalue 
       ^ ";\n"
@@ -138,7 +142,7 @@ and string_of_stmt : stmt -> string =
     | `Static_invoke(l, i_list) as expr -> 
       "  " ^ string_of_expr expr ^ ";\n"
     | `Ret(i) -> 
-      "  return " ^ string_of_value (intermediate_to_rvalue i) ^ ";\n"
+      "  return " ^ string_of_value (immediate_to_rvalue i) ^ ";\n"
     | `Ret_void -> 
       "  return;\n"
     | `Nop -> ""
@@ -147,13 +151,16 @@ and string_of_stmt : stmt -> string =
 and string_of_expr : expr -> string = 
   function 
     | `Bin(i1, bop, i2) -> 
-      string_of_value (intermediate_to_rvalue i1) ^ string_of_bop bop ^ string_of_value (intermediate_to_rvalue i2) 
+      string_of_value (immediate_to_rvalue i1) ^ string_of_bop bop ^ string_of_value (immediate_to_rvalue i2) 
     | `Rel(i1, rop, i2) -> 
-      string_of_value (intermediate_to_rvalue i1) ^ string_of_rop rop ^ string_of_value (intermediate_to_rvalue i2) 
+      string_of_value (immediate_to_rvalue i1) ^ string_of_rop rop ^ string_of_value (immediate_to_rvalue i2) 
     | `Static_invoke(msig, i_list) -> 
-      string_of_method_sig msig ^ "(" ^ string_of_intermediate_list i_list
-    | `Alloc(i) -> 
-      "alloc(" ^ string_of_value (intermediate_to_rvalue i) ^ ")"
+      string_of_method_sig msig ^ "(" ^ string_of_immediate_list i_list
+    | `New_expr(obj_type) ->
+      "new " ^ string_of_ty (Object(obj_type)) ^ "()"
+    | `New_array_expr(ty, i) -> 
+      "new " ^ string_of_ty ty ^ "[" 
+      ^ string_of_value (immediate_to_rvalue i) ^ "]"
 
 and string_of_identity_value : identity_value -> string = 
   function
@@ -175,12 +182,12 @@ and string_of_rop : relop -> string =
     | `And -> " && "
     | `Or -> " || "
 
-and string_of_intermediate_list : intermediate list -> string = 
+and string_of_immediate_list : immediate list -> string = 
   function 
     | [] -> ")"
-    | [x] -> string_of_value (intermediate_to_rvalue x) ^ ")"
-    | x :: xl -> string_of_value (intermediate_to_rvalue x) ^ ", " 
-                 ^ string_of_intermediate_list xl
+    | [x] -> string_of_value (immediate_to_rvalue x) ^ ")"
+    | x :: xl -> string_of_value (immediate_to_rvalue x) ^ ", " 
+                 ^ string_of_immediate_list xl
 
 let print_prog : prog -> unit = 
   List.iter 

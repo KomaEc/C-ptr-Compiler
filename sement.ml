@@ -5,6 +5,8 @@ open Symbol
 open Support.Error
 open Translate
 open Temp
+module T = Types
+module M = Mimple_temp
 
 exception Duplicated_Definition of info 
 exception Lack_Definition of info

@@ -10,12 +10,8 @@ and primitive_type = [
 
 and obj_type = [
   | `Object
-  | `ArrayTy of ty 
-  | `ClassTy of class_type
+  | `ClassTy of Symbol.t
 ]
-
-and class_type = 
-  { name : Symbol.t; field_signature : (Symbol.t * ty) list }
 
 
 let rec string_of_ty : ty -> string = 
@@ -24,12 +20,11 @@ let rec string_of_ty : ty -> string =
     | Primitive(`Bool) -> "bool"
     | Primitive(`Void) -> "void"
     | Object(`Object) -> "Object" 
-    | Object(`ArrayTy(ty)) -> string_of_ty ty ^ "[]"
-    | Object(`ClassTy(_ as cl)) -> string_of_class_type cl
+    (*| Object(`ArrayTy(ty)) -> string_of_ty ty ^ "[]"*)
+    | Object(`ClassTy(name)) -> string_of_class_type name
 
-and string_of_class_type : class_type -> string = 
-  fun { name; field_signature } -> 
-    Symbol.name name
+and string_of_class_type : Symbol.t -> string = 
+  Symbol.name
       
 and string_of_ty_list : ty list -> string = 
   fun ty_list -> 
