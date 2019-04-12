@@ -21,6 +21,7 @@ exception Type_Var_Misuse of info
 exception Not_Proper_Ret of info 
 exception Null_Reference of info
 exception Ignore_Non_Void of info
+exception Glb_Const of info
 
 
 module type env = sig 
@@ -256,6 +257,11 @@ let rec trans_stmt : status -> var_env -> str_env -> stmt -> unit =
         let () = emit_local_def t ty in 
         let () = emit_stmt (`Assign(`Temp(t), var_to_rvalue var)) in 
         t
+
+  and assert_const : info -> M.rvalue -> M.const = fun i ->
+    function 
+      | `Const(c) -> c 
+      | _ -> raise (Glb_Const i)
 
   and check_int : exp -> M.rvalue = fun e -> 
     let (t, ty) = trexpr e in 
@@ -517,6 +523,9 @@ let rec trans_stmt : status -> var_env -> str_env -> stmt -> unit =
 
   and trstmt : stmt -> unit = 
     function 
+      | Assign(SimpVar(id, _), expr, i) when st = Global ->
+        let c = trexpr expr |> fst |> assert_const i in 
+        assign_glb_vars id (`Const(c))
       | Assign(var', expr, i) -> 
         let (var, ty) = trvar var' in 
         let (rvalue, ty') = trexpr expr in 

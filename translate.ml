@@ -16,14 +16,19 @@ let type_convert : Ast.ty -> ty =
     | NameTy(ty_id) -> Object(`ClassTy(ty_id))
     | _ -> raise (Invalid_argument "primitive_type_convert")
 
-let glb_static_vars_tbl_ref : ty Symbol.table ref = 
-  ref Symbol.empty
+let glb_static_vars_tbl_ref : (Symbol.t * (ty * [ `Const of M.const ] option ref)) list ref = 
+  ref []
 
 let add_glb_vars : Symbol.t -> Ast.ty -> unit = 
   fun name ty ->
     let open Ast in
     let ty  = type_convert ty in
-    glb_static_vars_tbl_ref := Symbol.enter name ty !glb_static_vars_tbl_ref
+    glb_static_vars_tbl_ref := (name, (ty, ref None)) :: !glb_static_vars_tbl_ref
+
+let assign_glb_vars : Symbol.t -> [ `Const of M.const ] -> unit = 
+  fun id c -> 
+    let (_, init_ref) = List.assoc id !glb_static_vars_tbl_ref in 
+    init_ref := Some(c)
 
 let glb_class_sig_tbl_ref : (Symbol.t * ty) list Symbol.table ref
   = ref Symbol.empty
