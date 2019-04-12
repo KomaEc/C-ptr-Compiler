@@ -1,7 +1,7 @@
 
 (* open Mimple *)
 open Types
-module M = Mimple_temp
+module M = Mimple
 
 (* TODO : add global var reference, when doing semantics check, 
  * the occurence of glb vars are recorded here 
