@@ -76,11 +76,32 @@ and field_signature = Symbol.t * ty
 
  and relop = [ `Eq | `Lt | `Gt | `And | `Or ]
 
+ and meth = 
+   { meth_name : Symbol.t; 
+     meth_ret : ty; 
+     meth_args : (Symbol.t * ty) list;
+     meth_body : stmt list
+     }
+
+and cls = 
+   { cls_name : Symbol.t;
+     cls_super : Symbol.t; (* by default : Object *)
+     cls_fields : (Symbol.t * ty) list;
+     cls_meths : meth list
+     }
+
  and method_chunk = stmt list
 
  and prog = method_chunk list
+ (* TODO ; change representation. 
+  * type prog = 
+      { prog_cls : cls list;
+        prog_main : func}
+    and func = 
+      { local_decl : decl list;
+        body : stmt list}
+  *)
 
- (* TODO : add function chunk *)
 
 
  let var_to_rvalue : var -> rvalue = 

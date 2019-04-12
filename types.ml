@@ -13,7 +13,6 @@ and obj_type = [
   | `ClassTy of Symbol.t
 ]
 
-
 let rec string_of_ty : ty -> string = 
   function 
     | Primitive(`Int) -> "int"
