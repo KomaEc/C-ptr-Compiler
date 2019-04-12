@@ -10,7 +10,7 @@ Mimple is an simplified version of Jimple (SOOT Java optimization framework). In
 
 ## To Use
 ```bash
-ocamlbuild -use-menhir main.native
-./main.native ./test/basic.cm
+dune build ./bin/main.exe
+dune exec ./bin/main.exe ./test/basic.cm
 ```
-File "basic.cptr" is written in Cm. A translated version will be printed to the stdout channel.
+File "basic.cm" is written in Cm. A translated version will be printed to the stdout channel.

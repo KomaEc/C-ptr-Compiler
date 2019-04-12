@@ -1,0 +1,9 @@
+
+(library
+  (name cm_core))
+
+(menhir 
+  (modules parser))
+
+(ocamllex
+  (modules lexer))
