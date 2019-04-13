@@ -588,7 +588,8 @@ let rec trans_stmt : status -> var_env -> str_env -> stmt -> unit =
           match st with 
             | Local -> 
               let venv' = enter id (Env.Local(ty)) venv in 
-
+              let t = newtemp ~hint:id () in 
+              let () = emit_local_def t ty in
               trans_stmt Local venv' glb_senv s 
             | Global -> 
               let () = add_glb_vars id ty in
@@ -600,6 +601,7 @@ let rec trans_stmt : status -> var_env -> str_env -> stmt -> unit =
         let venv' = enter id (Env.Func(ty_list, ty)) venv in 
         trans_stmt Global venv' glb_senv s 
       | Fundefn(id, id_list, Arrow(ty_list, ty), inner_s, s, _) -> 
+        let () = begin_function id ty_list ty in
         let l = newlabel ~hint:id () in 
         let () = emit_stmt (`Label(l)) in 
         let entry_list_ref = ref [] in

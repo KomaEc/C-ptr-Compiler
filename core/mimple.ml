@@ -18,6 +18,7 @@ type immediate = [
 and const = [
   | `Null_const 
   | `Int_const of int
+  | `Bool_const of bool
 ]
 
  and var = [
@@ -43,7 +44,6 @@ and method_signature = Symbol.t * ty list * ty
 and field_signature = Symbol.t * ty
 
  and stmt = [
-   | `Temp_decl of [ `Temp of Temp.t ] * ty
    | `Assign of var * rvalue
    | `Identity of [ `Temp of Temp.t ] * identity_value 
    | `Label of label 
@@ -53,6 +53,10 @@ and field_signature = Symbol.t * ty
    | `Ret of immediate 
    | `Ret_void
    | `Nop
+ ]
+
+ and local_decl = [
+   | `Temp_decl of [ `Temp of Temp.t ] * ty
  ]
 
  and condition = [
@@ -77,30 +81,29 @@ and field_signature = Symbol.t * ty
  and relop = [ `Eq | `Lt | `Gt | `And | `Or ]
 
  and meth = 
-   { meth_name : Symbol.t; 
-     meth_ret : ty; 
-     meth_args : (Symbol.t * ty) list;
-     meth_body : stmt list
-     }
+  { meth_name : Symbol.t; 
+    meth_ret : ty; 
+    meth_args : (Symbol.t * ty) list;
+    meth_body : stmt list
+   }
 
 and cls = 
-   { cls_name : Symbol.t;
-     cls_super : Symbol.t; (* by default : Object *)
-     cls_fields : (Symbol.t * ty) list;
-     cls_meths : meth list
-     }
+  { cls_name : Symbol.t;
+    cls_super : Symbol.t; (* by default : Object *)
+    cls_fields : (Symbol.t * ty) list;
+    cls_meths : meth list
+   }
 
- and method_chunk = stmt list
 
- and prog = method_chunk list
- (* TODO ; change representation. 
-  * type prog = 
-      { prog_cls : cls list;
-        prog_main : func}
-    and func = 
-      { local_decl : decl list;
-        body : stmt list}
-  *)
+and func = 
+  {  func_name : Symbol.t;
+     func_args : ty list;
+     func_ret : ty;
+     local_decls : local_decl list;
+     func_body : stmt list
+  }
+
+ and prog = func list
 
 
 
@@ -121,6 +124,8 @@ let string_of_const : const -> string =
   function
     | `Int_const(num) -> string_of_int num 
     | `Null_const -> "NULL"
+    | `Bool_const(true) -> "true"
+    | `Bool_const(false) -> "false"
 
 
 let rec string_of_value : rvalue -> string = 
@@ -146,8 +151,6 @@ and string_of_field_sig : field_signature -> string =
 
 and string_of_stmt : stmt -> string = 
   function 
-    | `Temp_decl(`Temp(t), ty) -> 
-      "  " ^ string_of_ty ty ^ " " ^ string_of_temp t ^ ";\n"
     | `Assign(var, rvalue) -> 
       "  " ^ string_of_value (var_to_rvalue var) ^ " = " ^ string_of_value rvalue 
       ^ ";\n"
@@ -169,6 +172,11 @@ and string_of_stmt : stmt -> string =
     | `Ret_void -> 
       "  return;\n"
     | `Nop -> ""
+
+  and string_of_decl : local_decl -> string = 
+    function 
+      | `Temp_decl(`Temp(t), ty) -> 
+      "  " ^ string_of_ty ty ^ " " ^ string_of_temp t ^ ";\n"
 
 
 and string_of_expr : expr -> string = 
@@ -212,15 +220,20 @@ and string_of_immediate_list : immediate list -> string =
     | x :: xl -> string_of_value (immediate_to_rvalue x) ^ ", " 
                  ^ string_of_immediate_list xl
 
-let string_of_method : method_chunk -> string = 
-  List.fold_left 
-    (fun prev stmt -> 
-      prev ^ string_of_stmt stmt) ""
+let string_of_func : func -> string = 
+  fun { func_name; func_args; func_ret; local_decls; func_body } -> 
+    "\nBeginFunc " ^ Symbol.name func_name 
+    ^ " : " ^ string_of_ty_list func_args ^ " -> " 
+    ^ string_of_ty func_ret ^ "\n"
+    ^ (List.fold_left (fun acc decl -> acc ^ string_of_decl decl) "" local_decls)
+    ^ (List.fold_left (fun acc stmt -> acc ^ string_of_stmt stmt) "" func_body)
+    ^ "EndFunc\n"
+    
 
 let string_of_prog : prog -> string = 
   List.fold_left
     (fun prev method_chunk -> 
-      prev ^ string_of_method method_chunk) ""
+      prev ^ string_of_func method_chunk) ""
 
 let print_prog : prog -> unit = 
   fun prog -> string_of_prog prog |> print_endline

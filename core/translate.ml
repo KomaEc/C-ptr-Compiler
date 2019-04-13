@@ -7,13 +7,14 @@ module M = Mimple
  * the occurence of glb vars are recorded here 
  * Treated as a static field ! *)
 
+let object_id = Symbol.symbol "Object"
 
 let rec type_convert : Ast.ty -> ty = 
   function 
     | Int -> Primitive(`Int) 
     | Bool -> Primitive(`Bool)
     | Void -> Primitive(`Void)
-    | NameTy(ty_id) when Symbol.name ty_id = "Object" -> Object(`Object)
+    | NameTy(ty_id) when ty_id = object_id -> Object(`Object)
     | NameTy(ty_id) -> Object(`ClassTy(ty_id))
     | ArrayTy(ty) -> 
       let ty' = type_convert ty in Object(`ArrayTy(ty'))
@@ -47,25 +48,46 @@ let emit_local_def : Temp.t -> Ast.ty -> unit =
     cur_local_def := (t, ty) :: !cur_local_def
 
 
-let cur_method_chunk : M.stmt list ref = 
+let cur_func_body : M.stmt list ref = 
   ref []
 
 let emit_stmt : M.stmt -> unit = 
-  fun s -> cur_method_chunk := s :: !cur_method_chunk
+  fun s -> cur_func_body := s :: !cur_func_body
+
+let cur_func_ty : (Symbol.t * ty list * ty) option ref = ref None 
+
+let begin_function name ty_list ty = 
+  let ty_list' = List.map type_convert ty_list in 
+  let ty' = type_convert ty in 
+  cur_func_ty := Some(name, ty_list', ty')
 
 
 
 let prog_frag : M.prog ref = ref []
 
+
+(* TODO : modify here *)
 let end_function () = 
   let decl_list = 
     List.rev !cur_local_def 
     |> List.map (fun (t, ty) -> `Temp_decl(`Temp(t), ty))
     in 
-  let stmt_list = List.rev !cur_method_chunk in
+  let stmt_list = List.rev !cur_func_body in
   let () = cur_local_def := [] in 
-  let () = cur_method_chunk := [] in
-  prog_frag := (decl_list @ stmt_list) :: !prog_frag
+  let () = cur_func_body := [] in
+  let func : M.func = 
+    begin
+      match !cur_func_ty with 
+        | Some(name, ty_list, ty) -> 
+          { func_name = name; 
+            func_args = ty_list; 
+            func_ret = ty;
+            local_decls = decl_list; 
+            func_body = stmt_list; }
+        | _ -> assert false
+        
+    end in
+  prog_frag := func :: !prog_frag
 
 let get_mimple () = 
   List.rev !prog_frag
