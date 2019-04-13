@@ -138,7 +138,7 @@ let rec string_of_value : rvalue -> string =
 and string_of_method_sig : method_signature -> string = 
   fun (label, ty_list, ty) -> 
     string_of_label label 
-    ^ "(" ^ string_of_ty_list ty_list ^ ")" ^ string_of_ty ty
+    ^ " [" ^ string_of_ty_list ty_list ^ " : " ^ string_of_ty ty ^ "]"
 
 and string_of_field_sig : field_signature -> string = 
   fun (name, ty) -> 

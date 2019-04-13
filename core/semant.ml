@@ -83,8 +83,9 @@ let rec check_def : def_env -> Ast.stmt -> str_env = fun def_env -> function
                              (List.fold_left
                               (fun acc id -> enter id Vardef acc) def_env idl)
                              s'); check_def def_env s
-    with Not_found -> ignore (check_def (List.fold_left (fun acc id -> enter id Vardef acc) def_env idl) s');
-                      check_def (enter id (Fundef(ref true)) def_env) s) 
+    with Not_found -> let def_env' = enter id (Fundef(ref true)) def_env in
+                      ignore (check_def (List.fold_left (fun acc id -> enter id Vardef acc) def_env' idl) s');
+                      check_def def_env' s) 
   | Exp(e,_) -> check_def_exp def_env e; empty
   | Return(e,_) -> check_def_exp def_env e; empty
   | Assign(var,e,_) -> check_def_var_exp def_env var; check_def_exp def_env e; empty 
@@ -146,7 +147,7 @@ and check_def_var_exp def_env = function
         | _ -> ())
     with Not_found -> raise (Lack_Definition(i)))
   | FieldVar(v,_,_) -> check_def_var_exp def_env v 
-  | SubscriptVar(v,_,_) -> check_def_var_exp def_env v
+  | SubscriptVar(v,expr,_) -> check_def_var_exp def_env v; check_def_exp def_env expr
 
 and check_struct_entry : def_env -> info -> (Symbol.t * ty) list -> unit = 
   fun def_env i -> 
@@ -406,6 +407,11 @@ let rec trans_stmt : status -> var_env -> str_env -> stmt -> unit =
                     (fun ty' ty -> if ty' = ty then () else raise (Ill_Typed i)) 
                       ty_list' ty_list;
                   let ty_list'' = List.map type_convert ty_list in 
+
+
+                 (* print_endline (Types.string_of_ty_list ty_list''); *)
+
+
                   let t_list = List.map2 rvalue_to_immediate ty_list rval_list in
                   begin 
                     match ty with 
@@ -487,7 +493,7 @@ let rec trans_stmt : status -> var_env -> str_env -> stmt -> unit =
           if not (ty1 = ty2) then raise (Ill_Typed i)
           else let t1 = rvalue_to_immediate ty1 i1 in 
                let t2 = rvalue_to_immediate ty2 i2 in 
-               let () = emit_stmt (`If(`Rel(t1, `Gt, t2), lt)) in 
+               let () = emit_stmt (`If(`Rel(t1, `Eq, t2), lt)) in 
                emit_stmt (`Goto lf)
         | Un(_, expr, _) -> 
           cond_trexp expr lf lt 
@@ -537,7 +543,7 @@ let rec trans_stmt : status -> var_env -> str_env -> stmt -> unit =
               emit_stmt (`Assign(var, rvalue)) 
             | _ -> raise (Ill_Typed i)
         end
-      | If(expr, s, Some(s'), _) -> 
+      | If(expr, s, sop, _) -> 
         let cond = cond_trexp expr in 
         let l1 = newlabel () in 
         let l2 = newlabel () in
@@ -545,7 +551,11 @@ let rec trans_stmt : status -> var_env -> str_env -> stmt -> unit =
         let () = emit_stmt (`Label(l1)) in 
         let () = trstmt s in 
         let () = emit_stmt (`Label(l2)) in 
-        trstmt s'
+        begin
+          match sop with 
+            | Some(s') -> trstmt s' 
+            | None -> ()
+        end
       | While(expr, s, _) -> 
         let cond = cond_trexp expr in 
         let l1 = newlabel () in 
@@ -578,6 +588,7 @@ let rec trans_stmt : status -> var_env -> str_env -> stmt -> unit =
           match st with 
             | Local -> 
               let venv' = enter id (Env.Local(ty)) venv in 
+
               trans_stmt Local venv' glb_senv s 
             | Global -> 
               let () = add_glb_vars id ty in

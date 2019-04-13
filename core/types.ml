@@ -11,6 +11,7 @@ and primitive_type = [
 and obj_type = [
   | `Object
   | `ClassTy of Symbol.t
+  | `ArrayTy of ty
 ]
 
 let rec string_of_ty : ty -> string = 
@@ -21,6 +22,7 @@ let rec string_of_ty : ty -> string =
     | Object(`Object) -> "Object" 
     (*| Object(`ArrayTy(ty)) -> string_of_ty ty ^ "[]"*)
     | Object(`ClassTy(name)) -> string_of_class_type name
+    | Object(`ArrayTy(ty)) -> string_of_ty ty ^ "[]"
 
 and string_of_class_type : Symbol.t -> string = 
   Symbol.name

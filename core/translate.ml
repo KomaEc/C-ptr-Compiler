@@ -8,12 +8,15 @@ module M = Mimple
  * Treated as a static field ! *)
 
 
-let type_convert : Ast.ty -> ty = 
+let rec type_convert : Ast.ty -> ty = 
   function 
     | Int -> Primitive(`Int) 
     | Bool -> Primitive(`Bool)
+    | Void -> Primitive(`Void)
     | NameTy(ty_id) when Symbol.name ty_id = "Object" -> Object(`Object)
     | NameTy(ty_id) -> Object(`ClassTy(ty_id))
+    | ArrayTy(ty) -> 
+      let ty' = type_convert ty in Object(`ArrayTy(ty'))
     | _ -> raise (Invalid_argument "primitive_type_convert")
 
 let glb_static_vars_tbl_ref : (Symbol.t * (ty * [ `Const of M.const ] option ref)) list ref = 

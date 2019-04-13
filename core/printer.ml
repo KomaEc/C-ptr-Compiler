@@ -42,7 +42,7 @@ let rec print_stmt pre = function
       print_newline();
       print_string pre;
       print_ty t; print_string (" "^(name id)^";");
-      print_stmt pre s 
+      print_stmt pre s ;
   | Fundecl(id,t,s,_) -> 
       print_newline();
       print_string pre;

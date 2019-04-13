@@ -1,0 +1,13 @@
+int sum(int[] a, int l, int r) {
+    int res = 0;
+    for (int i = l; i <= r; i = i + 1) {
+        res = res + a[i];
+    }
+    return res;
+}
+
+int main() {
+    int[] a = new int[100];
+    for (int i = 0; i < 100; i = i + 1) a[i] = i;
+    return sum(a, 0, 99);
+}

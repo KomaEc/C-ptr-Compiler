@@ -1,0 +1,26 @@
+
+void qsort(int l, int r, int[] a) {
+    if (l >= r) return ;
+    int pivot = a[l];
+    int i = l;
+    int j = r;
+    for (; i < j; ) {
+        for (; i < j && a[j] >= pivot; j = j - 1) {}
+        a[i] = a[j];
+        if (i < j) {
+            for (; i < j && a[i] <= pivot; i = i + 1) {}
+            a[j] = a[i];
+        }
+    }
+    a[i] = pivot;
+    qsort(l, i - 1, a);
+    qsort(i + 1, r, a);
+    return ;
+
+}
+
+int main() {
+    int[] a = new int[100];
+    qsort(0, 99, a);
+    return 0;
+}
