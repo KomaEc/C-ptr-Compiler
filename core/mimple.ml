@@ -78,7 +78,7 @@ and field_signature = Symbol.t * ty
 
  and binop = [ `Plus | `Minus | `Times | `Div ]
 
- and relop = [ `Eq | `Lt | `Gt | `And | `Or ]
+ and relop = [ `Eq | `Lt | `Gt | `And | `Or | `Not ]
 
  and meth = 
   { meth_name : Symbol.t; 
@@ -214,6 +214,7 @@ and string_of_rop : relop -> string =
     | `Gt -> " > "
     | `And -> " && "
     | `Or -> " || "
+    | `Not -> "!"
 
 and string_of_immediate_list : immediate list -> string = 
   function 

@@ -366,8 +366,8 @@ let rec trans_stmt : status -> var_env -> str_env -> stmt -> unit =
   and trexpr : exp -> M.rvalue * ty = 
     function 
       | Intconst(num, _) -> (`Const(`Int_const(num)), Int) 
-      | True(_) -> (`Const(`Int_const(1)), Bool) 
-      | False(_) -> (`Const(`Int_const(0)), Bool) 
+      | True(_) -> (`Const(`Bool_const(true)), Bool) 
+      | False(_) -> (`Const(`Bool_const(false)), Bool) 
       | Var(var) -> 
         let (var, ty) = trvar var in 
         (var_to_rvalue var, ty)
@@ -394,7 +394,8 @@ let rec trans_stmt : status -> var_env -> str_env -> stmt -> unit =
         construct_bool_bin_bool expr1 bop expr2
       | Un(_, expr, _) -> 
         let t = check_bool expr |> rvalue_to_immediate Bool in 
-        (`Expr(`Bin(`Const(`Int_const(1)), `Minus, t)), Bool) 
+        (`Expr(`Rel(`Const(`Bool_const(true)), `Not, t)), Bool)
+        (*(`Expr(`Bin(`Const(`Int_const(1)), `Minus, t)), Bool) *)
       | App(id, expr_list, i) -> 
         let (rval_list, ty_list) = List.map trexpr expr_list |> List.split in  
         let l = newlabel ~hint:id () in
