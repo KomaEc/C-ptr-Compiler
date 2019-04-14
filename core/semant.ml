@@ -613,7 +613,7 @@ let rec trans_stmt : status -> var_env -> str_env -> stmt -> P.t =
         List.fold_left 
           (fun acc s -> 
             match acc with 
-              | P.Ret(_) as ret -> ret 
+              | P.Ret(_) as ret -> let _ = trstmt s in ret 
               | _ -> P.(Nret || trstmt s)) Nret stmt_list
       | Vardecl(id, ty, s, _) -> 
         begin
@@ -651,6 +651,7 @@ let rec trans_stmt : status -> var_env -> str_env -> stmt -> P.t =
           begin
             match trans_stmt Local venv'' glb_senv inner_s with 
               | Ret(ty'') when ty = ty'' -> () 
+              | Ret(_) -> raise (Ill_Typed i)
               | _ -> raise (Not_Proper_Ret i)
           end in
         let () = end_function () in 
