@@ -388,6 +388,14 @@ let rec trans_stmt : status -> var_env -> str_env -> stmt -> P.t =
         let imm = check_int expr |> rvalue_to_immediate Int in 
         (`Array_ref(t, imm), ty')
 
+  and ty_eq : ty -> ty -> bool = 
+    fun ty ty' ->
+      match ty, ty' with 
+        | _ when ty = ty' -> true 
+        | NameTy(_), Any -> true 
+        | Any, NameTy(_) -> true 
+        | _ -> false
+
   and trexpr : exp -> M.rvalue * ty = 
     function 
       | Intconst(num, _) -> (`Const(`Int_const(num)), Int) 
@@ -411,7 +419,7 @@ let rec trans_stmt : status -> var_env -> str_env -> stmt -> P.t =
       | Bin(expr1, Eq, expr2, i) -> 
         let (i1, ty1) = trexpr expr1 in 
         let (i2, ty2) = trexpr expr2 in 
-          if not (ty1 = ty2) then raise (Ill_Typed i)
+          if not (ty_eq ty1 ty2) then raise (Ill_Typed i)
           else let t1 = rvalue_to_immediate ty1 i1 in 
                let t2 = rvalue_to_immediate ty2 i2 in 
                 (`Expr(`Rel(t1, `Eq, t2)), Bool) 
@@ -516,7 +524,7 @@ let rec trans_stmt : status -> var_env -> str_env -> stmt -> P.t =
         | Bin(expr1, Eq, expr2, i) -> 
           let (i1, ty1) = trexpr expr1 in 
           let (i2, ty2) = trexpr expr2 in 
-          if not (ty1 = ty2) then raise (Ill_Typed i)
+          if not (ty_eq ty1 ty2) then raise (Ill_Typed i)
           else let t1 = rvalue_to_immediate ty1 i1 in 
                let t2 = rvalue_to_immediate ty2 i2 in 
                let () = emit_stmt (`If(`Rel(t1, `Eq, t2), lt)) in 
