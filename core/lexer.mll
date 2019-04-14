@@ -15,6 +15,7 @@
   let reserved_word = [
     (* keywords *)
     "for", (fun i -> FOR i);
+    "while", (fun i -> WHILE i);
     "if", (fun i -> IF i);
     "int", (fun _ -> INT);
     "void", (fun _ -> VOID);

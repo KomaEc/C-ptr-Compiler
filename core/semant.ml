@@ -220,9 +220,34 @@ and def id = function
 
 type status = Local | Global 
 
+module Proper_ret : 
+  (sig type t = Ret of ty | Nret 
+       val ( && ) : t -> t -> t 
+       val ( || ) : t -> t -> t end) = struct 
+    
+  type t = Ret of ty | Nret 
 
-let rec trans_stmt : status -> var_env -> str_env -> stmt -> unit = 
+  let ( && ) = 
+    fun t1 t2 -> 
+      match t1, t2 with 
+        | Ret(ty), Ret(ty') when ty = ty' -> Ret(ty) 
+        | _ -> Nret 
+
+  let ( || ) = 
+    fun t1 t2 -> 
+      match t1, t2 with 
+        | Nret, Ret(ty) -> Ret(ty) 
+        | _ -> Nret
+  
+
+end
+
+module P = Proper_ret
+
+
+let rec trans_stmt : status -> var_env -> str_env -> stmt -> P.t = 
   fun st venv glb_senv -> 
+
 
   let rec var_to_immediate : ty -> M.var -> M.immediate = fun ty ->
     function
@@ -528,20 +553,20 @@ let rec trans_stmt : status -> var_env -> str_env -> stmt -> unit =
           end 
         | _ -> raise (Ill_Typed (extract_info_exp exp)) 
 
-  and trstmt : stmt -> unit = 
+  and trstmt : stmt -> P.t = 
     function 
       | Assign(SimpVar(id, _), expr, i) when st = Global ->
         let c = trexpr expr |> fst |> assert_const i in 
-        assign_glb_vars id (`Const(c))
+        let () = assign_glb_vars id (`Const(c)) in Nret
       | Assign(var', expr, i) -> 
         let (var, ty) = trvar var' in 
         let (rvalue, ty') = trexpr expr in 
         begin 
           match (ty, ty') with 
             | _ when ty = ty' -> 
-              emit_stmt (`Assign(var, rvalue)) 
+              let () = emit_stmt (`Assign(var, rvalue)) in Nret
             | (NameTy(_), Any) -> 
-              emit_stmt (`Assign(var, rvalue)) 
+              let () = emit_stmt (`Assign(var, rvalue)) in Nret
             | _ -> raise (Ill_Typed i)
         end
       | If(expr, s, sop, _) -> 
@@ -550,12 +575,13 @@ let rec trans_stmt : status -> var_env -> str_env -> stmt -> unit =
         let l2 = newlabel () in
         let () = cond l1 l2 in 
         let () = emit_stmt (`Label(l1)) in 
-        let () = trstmt s in 
+        let prop_ret = trstmt s in 
         let () = emit_stmt (`Label(l2)) in 
         begin
           match sop with 
-            | Some(s') -> trstmt s' 
-            | None -> ()
+            | Some(s') -> let prop_ret' = trstmt s' in 
+                          P.(prop_ret && prop_ret')
+            | None -> prop_ret
         end
       | While(expr, s, _) -> 
         let cond = cond_trexp expr in 
@@ -565,25 +591,30 @@ let rec trans_stmt : status -> var_env -> str_env -> stmt -> unit =
         let () = emit_stmt (`Label(l1)) in 
         let () = cond l2 l3 in
         let () = emit_stmt (`Label(l2)) in 
-        let () = trstmt s in 
+        let _ = trstmt s in 
         let () = emit_stmt (`Goto(l1)) in 
-        emit_stmt (`Label(l3))
+        let () = emit_stmt (`Label(l3)) in Nret
       | Return(Void_exp, _) -> 
-        emit_stmt `Ret_void 
+        let () = emit_stmt `Ret_void in Ret(Void)
       | Return(expr, _) -> 
         let (rvalue, ty) = trexpr expr in 
-        emit_stmt (`Ret(rvalue_to_immediate ty rvalue))
+        let () = emit_stmt (`Ret(rvalue_to_immediate ty rvalue)) in 
+        Ret(ty)
       | Exp(expr, i) -> 
         let (_, ty) = trexpr expr in 
         (* don't need to emit code, since the code 
          * must've been emitted while translating expre *)
         begin
           match ty with
-            | Void -> () 
+            | Void -> Nret
             | _ -> raise (Ignore_Non_Void i)
         end
       | Seq(stmt_list, _) -> 
-        List.iter trstmt stmt_list
+        List.fold_left 
+          (fun acc s -> 
+            match acc with 
+              | P.Ret(_) as ret -> ret 
+              | _ -> P.(Nret || trstmt s)) Nret stmt_list
       | Vardecl(id, ty, s, _) -> 
         begin
           match st with 
@@ -591,17 +622,17 @@ let rec trans_stmt : status -> var_env -> str_env -> stmt -> unit =
               let venv' = enter id (Env.Local(ty)) venv in 
               let t = newtemp ~hint:id () in 
               let () = emit_local_def t ty in
-              trans_stmt Local venv' glb_senv s 
+              trans_stmt Local venv' glb_senv s
             | Global -> 
               let () = add_glb_vars id ty in
               (* Currently, global array is not allowed *)
               let venv' = enter id (Env.Global(ty)) venv in 
-              trans_stmt Global venv' glb_senv s
+              trans_stmt Global venv' glb_senv s 
           end
       | Fundecl(id, Arrow(ty_list, ty), s, _) -> 
         let venv' = enter id (Env.Func(ty_list, ty)) venv in 
-        trans_stmt Global venv' glb_senv s 
-      | Fundefn(id, id_list, Arrow(ty_list, ty), inner_s, s, _) -> 
+        trans_stmt Global venv' glb_senv s
+      | Fundefn(id, id_list, Arrow(ty_list, ty), inner_s, s, i) -> 
         let () = begin_function id ty_list ty in
         let l = newlabel ~hint:id () in 
         let () = emit_stmt (`Label(l)) in 
@@ -616,7 +647,12 @@ let rec trans_stmt : status -> var_env -> str_env -> stmt -> unit =
           List.fold_left2
             (fun acc id entry -> enter id entry acc)
               venv' id_list entry_list in 
-        let () = trans_stmt Local venv'' glb_senv inner_s in
+        let () = 
+          begin
+            match trans_stmt Local venv'' glb_senv inner_s with 
+              | Ret(ty'') when ty = ty'' -> () 
+              | _ -> raise (Not_Proper_Ret i)
+          end in
         let () = end_function () in 
         trans_stmt Global venv' glb_senv s
       | Structdecl(_, s, _) -> 
@@ -624,11 +660,11 @@ let rec trans_stmt : status -> var_env -> str_env -> stmt -> unit =
       | Structdefn(_, _, s, _) -> 
         trstmt s
           
-      | _ -> ()
+      | _ -> Nret
   in trstmt
 
 let check s = 
   let glb_senv =(check_def empty s) in 
   let () = check_init s in 
-  let () = trans_stmt Global empty glb_senv s in 
+  let _ = trans_stmt Global empty glb_senv s in 
   get_mimple ()

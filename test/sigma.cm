@@ -6,6 +6,15 @@ int sum(int[] a, int l, int r) {
     return res;
 }
 
+int sum2(int[] a, int l, int r) {
+    int res = 0;
+    int i = l;
+    while (i <= r) {
+        res = res + a[i];
+    }
+    return res;
+}
+
 int main() {
     int[] a = new int[100];
     for (int i = 0; i < 100; i = i + 1) a[i] = i;

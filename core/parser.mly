@@ -7,7 +7,7 @@
 
 %token <int Support.Error.withinfo> NUM
 %token <Symbol.t Support.Error.withinfo> ID 
-%token <Support.Error.info> FOR IF ELSE
+%token <Support.Error.info> FOR IF ELSE WHILE
 %token <Support.Error.info> TRUE FALSE
 %token INT VOID BOOL
 %token <Support.Error.info> RETURN
@@ -273,6 +273,8 @@ control :
   | i=FOR; LPAREN; d=decl; e=exp; SEMICOLON; sop2=simpopt;
     RPAREN; s=stmt                                
     { d (A.While(e, A.Seq([s; sop2], A.Util.extract_info_stmt s), i)) }
+  | i=WHILE; LPAREN; e=exp; RPAREN; s=stmt 
+    { A.While(e, s, i)}
 
   ;
 
