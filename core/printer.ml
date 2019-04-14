@@ -60,11 +60,11 @@ let rec print_stmt pre = function
       print_stmt pre s
   | Structdecl(id,s,_) -> 
       print_newline();
-      print_string (pre^"struct "^(name id)^";");
+      print_string (pre^"class "^(name id)^";");
       print_stmt pre s 
   | Structdefn(id,itl,s,_) -> 
       print_newline();
-      print_string (pre^"struct "^(name id)^" {");
+      print_string (pre^"class "^(name id)^" {");
       print_endline (pre^"  ");
       List.iter (fun (id,t) -> 
                  print_string (pre^"  ");

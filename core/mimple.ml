@@ -103,6 +103,8 @@ and func =
      func_body : stmt list
   }
 
+
+(* TODO : add glb_vars info and cls info! *)
  and prog = func list
 
 

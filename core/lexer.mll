@@ -20,7 +20,7 @@
     "void", (fun _ -> VOID);
     "return", (fun i -> RETURN i);
     "else", (fun i -> ELSE i);
-    "struct", (fun _ -> STRUCT);
+    "class", (fun _ -> CLASS);
     "new", (fun i -> NEW i);
     "true", (fun i -> TRUE i);
     "false", (fun i -> FALSE i);

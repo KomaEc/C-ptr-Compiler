@@ -1,8 +1,8 @@
-struct tree {
+class tree {
     int x;
     tree left;
     tree right;
-};
+}
 
 int main() {
     tree t = new tree;

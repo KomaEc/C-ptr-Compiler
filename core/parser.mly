@@ -21,7 +21,7 @@
 %token <Support.Error.info> AND OR
 %token <Support.Error.info> NOT
 %token <Support.Error.info> ASSIGN NEQ LT GT LEQ GEQ EQ
-%token STRUCT
+%token CLASS
 %token <Support.Error.info> NEW
 %token <Support.Error.info> NULL
 
@@ -51,14 +51,14 @@ gdecl :
   ;
 
 structdecl : 
-  | STRUCT; vi=ID; SEMICOLON                      
+  | CLASS; vi=ID                     
     { let {v;i}=vi in 
       fun s -> A.Structdecl(v,s,i) }
   ;
 
 strcutdefn : 
-  | STRUCT; vi=ID; LBRACE; 
-    pl=field_list; RBRACE; SEMICOLON
+  | CLASS; vi=ID; LBRACE; 
+    pl=field_list; RBRACE
     { let {v;i}=vi in 
       fun s -> A.Structdefn(v,pl,s,i) }
   ;
