@@ -1,6 +1,9 @@
 # Cm-Compiler
 ## Intro
-A compiler for a syntactically C-like imperative programming language (its semantics are closer to Java. For example, there's no pointer. The types are divided into two groups, primitive type and object type. Values of object types are passed by reference, etc.), supporting (currently) one-dimentional array and struct. (Under development) Goals: a middle end that supports data flow analysis framework, and Andersen's pointer analysis.
+A compiler for a syntactically C-like imperative programming language (its semantics are closer to Java. For example, there's no pointer. The types are divided into two groups, primitive type and object type. Values of object types are passed by reference, etc.), supporting (currently) one-dimentional array and struct. (Under development)
+
+## Goals
+A compiler for an imperative programming language, with a middle end (Mimple) supporting pointer analysis. The final objective is to compile the intermmediate representation to Lua bytecode.
 
 ## Currently
 With an input C file, the compiler transforms the source file into an AST, and performs sementic checks. After the semantics checking, the compiler will transform the original program into an intermediate representation Mimple. The result will be printed to the standard output channel.
