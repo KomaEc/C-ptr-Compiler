@@ -6,6 +6,7 @@ open Lexing
 
 module Lexer = Cm_core.Lexer
 module Mimple = Cm_core.Mimple
+module Basic_block = Cm_core.Basic_block
 open Cm_core.Printer
 open Cm_core.Semant
 open Cm_core.Support.Error
@@ -72,6 +73,9 @@ let () =
           let prog = check_with_error s in
           print_endline "\nTranslating to Mimple...\n";
           Mimple.print_prog prog;
+          print_newline ();
+          print_endline "partitionning...";
+          Basic_block.print_good_prog prog;
           close_in inx
           )
   | _ -> fprintf stderr "Too many arguments! Expected 1\n"; exit(0)

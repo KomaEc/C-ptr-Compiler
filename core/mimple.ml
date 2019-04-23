@@ -1,4 +1,3 @@
-
 (** Target of this intermedia representation:
  ** 1. isolate potentially effectful expressions, making their order
  ** of excution explicit. 
@@ -43,7 +42,7 @@ and method_signature = Symbol.t * ty list * ty
 
 and field_signature = Symbol.t * ty
 
- and stmt = [
+and stmt = [
    | `Assign of var * rvalue
    | `Identity of [ `Temp of Temp.t ] * identity_value 
    | `Label of label 

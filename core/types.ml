@@ -20,7 +20,6 @@ let rec string_of_ty : ty -> string =
     | Primitive(`Bool) -> "bool"
     | Primitive(`Void) -> "void"
     | Object(`Object) -> "Object" 
-    (*| Object(`ArrayTy(ty)) -> string_of_ty ty ^ "[]"*)
     | Object(`ClassTy(name)) -> string_of_class_type name
     | Object(`ArrayTy(ty)) -> string_of_ty ty ^ "[]"
 

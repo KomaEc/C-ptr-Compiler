@@ -577,20 +577,28 @@ let rec trans_stmt : status -> var_env -> str_env -> stmt -> P.t =
               let () = emit_stmt (`Assign(var, rvalue)) in Nret
             | _ -> raise (Ill_Typed i)
         end
-      | If(expr, s, sop, _) -> 
+      | If(expr, s, Some(s'), _) -> 
         let cond = cond_trexp expr in 
         let l1 = newlabel () in 
         let l2 = newlabel () in
+        let l3 = newlabel () in
         let () = cond l1 l2 in 
         let () = emit_stmt (`Label(l1)) in 
         let prop_ret = trstmt s in 
+        let () = emit_stmt (`Goto(l3)) in 
         let () = emit_stmt (`Label(l2)) in 
-        begin
-          match sop with 
-            | Some(s') -> let prop_ret' = trstmt s' in 
-                          P.(prop_ret && prop_ret')
-            | None -> prop_ret
-        end
+        let prop_ret' = trstmt s' in 
+        let () = emit_stmt (`Label(l3)) in 
+        P.(prop_ret && prop_ret')
+      | If(expr, s, _, _) ->
+        let cond = cond_trexp expr in 
+        let l1 = newlabel () in 
+        let l2 = newlabel () in 
+        let () = cond l1 l2 in 
+        let () = emit_stmt (`Label(l1)) in 
+        let _ = trstmt s in 
+        let () = emit_stmt (`Label(l2)) in 
+        Nret
       | While(expr, s, _) -> 
         let cond = cond_trexp expr in 
         let l1 = newlabel () in 

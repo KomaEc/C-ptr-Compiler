@@ -27,7 +27,9 @@ type stmt =
   | Fundefn of ident * ident list * ty * stmt * stmt * info
   | Structdecl of ident * stmt * info 
   | Structdefn of ident * (ident * ty) list * stmt * info
+
 and ident = Symbol.t 
+
 and exp = 
   | Intconst of int * info
   | True of info 
@@ -40,14 +42,18 @@ and exp =
   | Alloc of ty * info
   | Nil of info
   | Void_exp
+
 and var = 
   | SimpVar of ident * info 
   | FieldVar of var * ident * info 
   | SubscriptVar of var * exp * info
+
 and binop = Plus | Minus | Times | Div | And | Or | Lt | Gt | Eq
+
 and unop = Not
+
 and ty = Int | Bool | Void
-       | Arrow of ty list * ty  
+       | Arrow of ty list * ty
        | ArrayTy of ty
        | NameTy of ident | Any
 
