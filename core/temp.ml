@@ -26,4 +26,7 @@ let newlabel ?hint () =
             Symbol.symbol ("L"^(string_of_int i))
   | Some name -> name
 
+let re_fresh_label () = 
+  labbase := 0
+
 let string_of_label = Symbol.name

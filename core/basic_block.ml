@@ -1,7 +1,8 @@
+
+
 open Mimple
 open Types
 module S = Symbol
-
 let partition_into_blocks : stmt list -> stmt list list = 
   fun stmt_list ->
 
@@ -11,8 +12,15 @@ let partition_into_blocks : stmt list -> stmt list list =
 
   let is_leader = Array.make stmt_num false in 
 
+  let find_useful_labels = 
+    List.fold_left
+      (fun prev stmt -> 
+        match stmt with 
+          | `If(_, l) -> S.enter l () prev 
+          | `Goto(l) -> S.enter l () prev 
+          | _ -> prev) S.empty stmt_list in 
+
   let find_leader : unit -> unit = fun () -> 
-    let tbl_ref : unit S.table ref = ref S.empty in 
     let is_contained : S.t -> unit S.table -> bool = 
       fun s tbl -> 
       begin
@@ -24,19 +32,11 @@ let partition_into_blocks : stmt list -> stmt list list =
     (fun i stmt -> 
     begin
       match stmt with 
-      | `If(_, l) -> 
-        begin
-          tbl_ref := S.enter l () !tbl_ref;
-          if i < stmt_num - 1 then is_leader.(i+1) <- true 
-        end
-      | `Goto(l) -> 
-        begin 
-          tbl_ref := S.enter l () !tbl_ref;
-          if i < stmt_num - 1 then is_leader.(i+1) <- true 
-        end
+      | `If(_) -> if i < stmt_num - 1 then is_leader.(i+1) <- true 
+      | `Goto(_) -> if i < stmt_num - 1 then is_leader.(i+1) <- true 
       | `Label(l) ->
-        if is_contained l !tbl_ref then
-        is_leader.(i) <- true
+        if is_contained l find_useful_labels then 
+        is_leader.(i) <- true 
       | _ -> ()
     end) stmt_array in 
 
@@ -81,7 +81,7 @@ let print_blocks : stmt list list -> unit =
 let string_of_block : stmt list -> string = fun stmt_list ->
   "\nBegin Block:\n"
   ^ (List.fold_left (fun acc stmt -> acc ^ string_of_stmt stmt) "" stmt_list)
-  ^ "\nEnd Block\n"
+  ^ "End Block\n"
 
 
 let string_of_block : stmt list -> string = fun stmt_list ->
