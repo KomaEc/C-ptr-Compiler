@@ -90,7 +90,7 @@ let end_function () =
   prog_frag := func :: !prog_frag
 
 let get_mimple () = 
-  List.rev !prog_frag
+  List.rev !prog_frag |> List.map M.simplify_func
 
 (*
 let code_frag : prog ref = ref [] 

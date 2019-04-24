@@ -1,6 +1,7 @@
 
 (library
-  (name cm_core))
+  (name cm_core)
+  (libraries cm_util))
 
 (menhir 
   (modules parser))

@@ -7,7 +7,7 @@
 
  open Temp 
  open Types
-
+ module S = Symbol
 
 type immediate = [
   | `Const of const 
@@ -104,7 +104,57 @@ and func =
 
 
 (* TODO : add glb_vars info and cls info! *)
- and prog = func list
+and prog = func list
+
+
+let simplify_func_body : stmt list -> stmt list = fun stmt_list ->
+  let module UF = Cm_util.Union_and_find in
+  let label_to_point : S.t UF.point S.table = 
+    List.fold_left 
+    (fun prev stmt ->
+    match stmt with 
+      | `Label(l) -> S.enter l (UF.fresh l) prev
+      | _ -> prev) S.empty stmt_list in
+  let rec union : stmt list -> stmt list = 
+    function 
+      | [] -> []
+      | [s] -> [s]
+      | s :: (s' :: _ as sl) ->
+        begin 
+          match s, s' with 
+            | `Label l, `Label l' ->
+              UF.union (S.lookup l label_to_point) 
+              (S.lookup l' label_to_point);
+              union sl
+            | _ -> s :: union sl
+        end in
+  let get_repr : label -> label = fun l ->
+    let point = S.lookup  l label_to_point in 
+    UF.find point in
+  let substitute : stmt -> stmt = 
+    function 
+      | `If(cond, l) -> `If(cond, get_repr l) 
+      | `Goto(l) -> `Goto(get_repr l) 
+      | `Label(l) -> `Label(get_repr l)
+      | _ as s -> s in
+  List.map substitute (union stmt_list)
+
+
+let simplify_func : func -> func = 
+  function 
+    { func_name = _; 
+      func_args = _;
+      func_ret = _;
+      local_decls = _;
+      func_body} as func -> 
+    { func with func_body = simplify_func_body func_body }
+  
+
+
+
+
+ (* TODO : use union-and-find data structure to simplify
+  * Mimple programs. (jump statement) *)
 
 
 
