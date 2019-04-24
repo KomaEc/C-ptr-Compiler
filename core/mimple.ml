@@ -55,13 +55,13 @@ and stmt = [
    | `Nop
  ]
 
- and local_decl = [
-   | `Temp_decl of [ `Temp of Temp.t ] * ty
- ]
+and local_decl = [
+  | `Temp_decl of [ `Temp of Temp.t ] * ty
+]
 
- and condition = [
-   | `Temp of Temp.t
-   | `Rel of immediate * relop * immediate
+and condition = [
+  | `Temp of Temp.t
+  | `Rel of immediate * relop * immediate
  ]
 
  and expr = [
@@ -79,21 +79,6 @@ and stmt = [
  and binop = [ `Plus | `Minus | `Times | `Div ]
 
  and relop = [ `Eq | `Lt | `Gt | `And | `Or | `Not ]
-
- and meth = 
-  { meth_name : Symbol.t; 
-    meth_ret : ty; 
-    meth_args : (Symbol.t * ty) list;
-    meth_body : stmt list
-   }
-
-and cls = 
-  { cls_name : Symbol.t;
-    cls_super : Symbol.t; (* by default : Object *)
-    cls_fields : (Symbol.t * ty) list;
-    cls_meths : meth list
-   }
-
 
 and func = 
   {  func_name : Symbol.t;
@@ -122,7 +107,9 @@ let simplify_func_body : stmt list -> stmt list = fun stmt_list ->
       | s :: (s' :: _ as sl) ->
         begin 
           match s, s' with 
-            | `Label l, `Label l' ->
+          (* [!!!] Problematic, since this label can be function 
+           * Consider reveal the label type in Temp ??? *)
+            | `Label l, `Label l' | `Label l, `Goto l' ->
               UF.union (S.lookup l label_to_point) 
               (S.lookup l' label_to_point);
               union sl
@@ -161,18 +148,7 @@ let simplify_func : func -> func =
                        |> simplify_func_body 
                        |> simple_jump_peephole }
 
-
-
-
-
-
-
-
-
-
-
-
-
+(* Printing Utility *)
 
  let var_to_rvalue : var -> rvalue = 
    function 
