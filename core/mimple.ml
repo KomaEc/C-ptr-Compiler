@@ -7,6 +7,7 @@
 
  open Temp 
  open Types
+ module UF = Cm_util.Union_and_find
  module S = Symbol
 
 type immediate = [
@@ -108,7 +109,6 @@ and prog = func list
 
 
 let simplify_func_body : stmt list -> stmt list = fun stmt_list ->
-  let module UF = Cm_util.Union_and_find in
   let label_to_point : S.t UF.point S.table = 
     List.fold_left 
     (fun prev stmt ->
@@ -139,6 +139,15 @@ let simplify_func_body : stmt list -> stmt list = fun stmt_list ->
       | _ as s -> s in
   List.map substitute (union stmt_list)
 
+let rec simple_jump_peephole : stmt list -> stmt list =
+    function 
+    | [] -> [] 
+    | [s] -> [s] 
+    | s :: (s' :: sl' as sl) -> 
+      match s, s' with 
+        | `Goto(l), `Label(l') when l = l' -> simple_jump_peephole sl' 
+        | _ -> s :: simple_jump_peephole sl
+
 
 let simplify_func : func -> func = 
   function 
@@ -147,14 +156,21 @@ let simplify_func : func -> func =
       func_ret = _;
       local_decls = _;
       func_body} as func -> 
-    { func with func_body = simplify_func_body func_body }
-  
+    { func 
+      with func_body = func_body
+                       |> simplify_func_body 
+                       |> simple_jump_peephole }
 
 
 
 
- (* TODO : use union-and-find data structure to simplify
-  * Mimple programs. (jump statement) *)
+
+
+
+
+
+
+
 
 
 
