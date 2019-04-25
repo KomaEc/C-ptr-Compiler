@@ -26,7 +26,7 @@ let remove : 'a -> 'a t -> 'a t = fun x (tbl1, tbl2, bitv) ->
 let mem : 'a -> 'a t -> bool = fun x (tbl1, _, bitv) -> 
   Bitv.get bitv (Hashtbl.find tbl1 x)
 
-let mems : 'a t -> 'a list = fun (tbl1, tbl2, bitv) -> 
+let mems : 'a t -> 'a list = fun (_, tbl2, bitv) -> 
   Bitv.foldi_left 
     (fun acc i b -> 
       if b then Hashtbl.find tbl2 i :: acc else acc) [] bitv
@@ -47,7 +47,7 @@ let diff : 'a t -> 'a t -> 'a t =
   fun bs1 bs2 -> 
     inter bs1 (negate bs2)
 
-let equals : 'a t -> 'a t -> bool = 
+let equal : 'a t -> 'a t -> bool = 
   fun (_, _, bv1) (_, _, bv2) -> 
     let res = ref true in 
     Bitv.iteri_true
