@@ -24,7 +24,6 @@
 %token CLASS
 %token <Support.Error.info> NEW
 %token <Support.Error.info> NULL
-%token EXTENDS
 
 %left OR
 %left AND

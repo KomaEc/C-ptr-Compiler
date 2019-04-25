@@ -22,7 +22,6 @@
     "return", (fun i -> RETURN i);
     "else", (fun i -> ELSE i);
     "class", (fun _ -> CLASS);
-    "extends", (fun _ -> EXTENDS);
     "new", (fun i -> NEW i);
     "true", (fun i -> TRUE i);
     "false", (fun i -> FALSE i);
