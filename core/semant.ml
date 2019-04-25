@@ -27,7 +27,7 @@ exception Glb_Const of info
 module type env = sig 
 
   type ty
-  type entry = Local of ty | Parameter of int * ty | Global of ty | Func of ty list * ty 
+  type entry = Local of ty | Parameter of int * ty * Temp.t option ref | Global of ty | Func of ty list * ty 
   (* struct env, maps field name to its type and offset and the total size *)
   val base_senv : (Symbol.t * ty) list Symbol.table
   (* variable env, maps vars to types *)
@@ -36,7 +36,7 @@ end
 
 module Env : env with type ty = Ast.ty = struct 
   type ty = Ast.ty
-  type entry = Local of ty | Parameter of int * ty | Global of ty | Func of ty list * ty 
+  type entry = Local of ty | Parameter of int * ty * Temp.t option ref | Global of ty | Func of ty list * ty 
   let base_senv = Symbol.empty 
 
   let base_venv = Symbol.empty
@@ -352,20 +352,19 @@ let rec trans_stmt : status -> var_env -> str_env -> stmt -> P.t =
               let t = newtemp ~hint:id () in 
               (* don't emit declaration, since it must've been defined before *)
               (`Temp(t), ty) 
-            | Env.Parameter(pos, ty) -> 
-
-
+            | Env.Parameter(pos, ty, temp_op_ref) -> 
+              begin
+                match !temp_op_ref with 
+                  | Some(t) -> (`Temp(t), ty) 
+                  | None -> 
             (* TODO : !!! modify here! 
-             * the so-called "Identity" is a reference
-             * Therefore should not simply return a 
-             * temperory. *)
-
-
-              
-              let t = newtemp () in 
-              let () = emit_local_def t ty in 
-              let () = emit_stmt (`Identity(`Temp(t), `Parameter_ref(pos))) in 
-              (`Temp(t), ty)
+             * Move all the identity to the front! *)
+                    let t = newtemp () in 
+                    let () = temp_op_ref := Some(t) in
+                    let () = emit_local_def t ty in 
+                    let () = emit_stmt (`Identity(`Temp(t), `Parameter_ref(pos))) in 
+                    (`Temp(t), ty)
+              end
             | Env.Global(ty) -> 
               (`Static_field_ref(id), ty)
             | _ -> assert false
@@ -664,7 +663,7 @@ let rec trans_stmt : status -> var_env -> str_env -> stmt -> P.t =
         let entry_list_ref = ref [] in
         let () = 
           List.iteri
-            (fun i ty -> entry_list_ref := Env.Parameter(i, ty) :: !entry_list_ref)
+            (fun i ty -> entry_list_ref := Env.Parameter(i, ty, ref None) :: !entry_list_ref)
               ty_list in 
         let entry_list = List.rev !entry_list_ref in
         let venv' = enter id (Env.Func(ty_list, ty)) venv in 
