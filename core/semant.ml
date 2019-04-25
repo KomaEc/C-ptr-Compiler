@@ -663,7 +663,10 @@ let rec trans_stmt : status -> var_env -> str_env -> stmt -> P.t =
         let entry_list_ref = ref [] in
         let () = 
           List.iteri
-            (fun i ty -> entry_list_ref := Env.Parameter(i, ty, ref None) :: !entry_list_ref)
+            (fun i ty -> 
+              let t = newtemp () in
+              let () = emit_stmt (`Identity(`Temp(t), `Parameter_ref(i))) in
+              entry_list_ref := Env.Parameter(i, ty, ref (Some t)) :: !entry_list_ref)
               ty_list in 
         let entry_list = List.rev !entry_list_ref in
         let venv' = enter id (Env.Func(ty_list, ty)) venv in 
