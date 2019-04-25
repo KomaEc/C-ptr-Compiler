@@ -29,3 +29,15 @@ let live_vars (instrs : M.stmt array) : int t =
     bottom = bvs
   }
 
+
+type 'a result = 'a Bs.t array
+
+let pred (_ : M.stmt array) (_ : int) : int list = 
+  []
+
+let succ (_ : M.stmt array) (_ : int) : int list = 
+  []
+
+let do_dfa (_ : 'a t) : 'a result = 
+  [||]
+

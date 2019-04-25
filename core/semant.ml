@@ -353,6 +353,15 @@ let rec trans_stmt : status -> var_env -> str_env -> stmt -> P.t =
               (* don't emit declaration, since it must've been defined before *)
               (`Temp(t), ty) 
             | Env.Parameter(pos, ty) -> 
+
+
+            (* TODO : !!! modify here! 
+             * the so-called "Identity" is a reference
+             * Therefore should not simply return a 
+             * temperory. *)
+
+
+              
               let t = newtemp () in 
               let () = emit_local_def t ty in 
               let () = emit_stmt (`Identity(`Temp(t), `Parameter_ref(pos))) in 
