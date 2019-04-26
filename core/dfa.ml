@@ -15,7 +15,7 @@ type 'a dfa = {
   instrs : M.stmt array;
   dir : dir_type; (* direction *)
   may_must : may_must_type; (* may -> union or must -> intersection *)
-  gen_kill : M.stmt -> ('a Bs.t * 'a Bs.t); (* (gen, kill) *)
+  transfer : int -> 'a Bs.t -> 'a Bs.t; (* Transfer function at position i *)
   entry_or_exit_facts : 'a Bs.t; (* facts assumed at program entry (fwd analysis) or exit (bkwd analysis) *)
   bottom : 'a Bs.t; (* initial sets of facts at all other program points *)
 }
@@ -59,9 +59,7 @@ let calculate_pred_succ (instrs : M.stmt array) : int list array * int list arra
 
 
 
-module LV = struct 
-
-  type xxx = M.immediate -> T.t list
+module LiveVariable = struct 
 
   let rec temps_in_rvalue : M.rvalue -> T.t list = function 
     | `Temp(t) -> [t]
@@ -88,27 +86,46 @@ module LV = struct
     | `Temp(t) -> [t] 
     | `Rel(x) -> temps_in_expr (`Rel(x))
 
+  
+  let gen : T.t Bs.t -> T.t list -> T.t Bs.t = 
+    List.fold_left (fun acc t -> Bs.insert t acc)
+  
+  let kill : T.t Bs.t -> T.t list -> T.t Bs.t = 
+    List.fold_left (fun acc t -> Bs.remove t acc)
 
-
-  (* TODO : collect all the temperories!!! *)
-
-
-  (*
-
-  let gen_kill : M.stmt -> T.t Bs.t * T.t Bs.t = 
-    function 
+  let transfer : M.stmt -> T.t Bs.t -> T.t Bs.t = 
+    function
       | `Assign(var, rvalue) -> 
-        *)
+        let tvars = temps_in_var var in 
+        let trvs = temps_in_rvalue rvalue in 
+        fun pre_fact -> gen (kill pre_fact tvars) trvs
+      | `If(cond, _) -> 
+        let tconds = temps_in_condition cond in 
+        fun pre_fact -> gen pre_fact tconds
+      | `Static_invoke(x) -> 
+        let texprs = temps_in_expr (`Static_invoke(x)) in
+        fun pre_fact -> gen pre_fact texprs
+      | `Ret(i) ->
+        let tis = temps_in_immediate i in 
+        fun pre_fact -> gen pre_fact tis
+      | _ -> fun x -> x
 
 end
 
 let live_vars (instrs : M.stmt array) : Temp.t dfa = 
+  let open LiveVariable in
   let bvs = Bs.mkempty [] in 
+  let transfer_array : (T.t Bs.t -> T.t Bs.t) array = 
+    Array.fold_left
+    (fun acc stmt -> (transfer stmt) :: acc) [] instrs
+    |> List.rev
+    |> Array.of_list in
+  let transfer = fun i -> transfer_array.(i) in
   {
     instrs = instrs;
     dir = D_Backward;
     may_must = K_May;
-    gen_kill = (fun _ -> bvs, bvs);
+    transfer = transfer;
     entry_or_exit_facts = bvs;
     bottom = bvs;
   }

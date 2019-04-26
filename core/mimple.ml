@@ -47,7 +47,6 @@ and field_signature = Symbol.t * ty
 
 and stmt = [
    | `Assign of var * rvalue
-   | `Identity of [ `Temp of Temp.t ] * identity_value 
    | `Label of label 
    | `Goto of label 
    | `If of condition * label
@@ -56,6 +55,10 @@ and stmt = [
    | `Ret_void
    | `Nop
  ]
+
+and identity = [
+  | `Identity of [ `Temp of Temp.t ] * identity_value
+]
 
 and local_decl = [
   | `Temp_decl of [ `Temp of Temp.t ] * ty
@@ -88,6 +91,7 @@ and func =
      func_ret : ty;
      (* TODO : add identity declaration!!! *)
      local_decls : local_decl list;
+     identities : identity list;
      func_body : stmt list
   }
 
@@ -143,17 +147,11 @@ let rec simple_jump_peephole : stmt list -> stmt list =
         | _ -> s :: simple_jump_peephole sl
 
 
-let simplify_func : func -> func = 
-  function 
-    { func_name = _; 
-      func_args = _;
-      func_ret = _;
-      local_decls = _;
-      func_body} as func -> 
-    { func 
-      with func_body = func_body
-                       |> simplify_func_body 
-                       |> simple_jump_peephole }
+let simplify_func : func -> func = fun func -> 
+  { func 
+    with func_body = func.func_body
+                    |> simplify_func_body
+                    |> simple_jump_peephole }
 
 (* Printing Utility *)
 
@@ -198,9 +196,6 @@ and string_of_stmt : stmt -> string =
     | `Assign(var, rvalue) -> 
       "  " ^ string_of_value (var_to_rvalue var) ^ " = " ^ string_of_value rvalue 
       ^ ";"
-    | `Identity(`Temp(t), id_value) -> 
-      "  " ^ string_of_value (`Temp(t)) ^ " := " 
-      ^ string_of_identity_value id_value ^ ";"
     | `Label(l) -> 
       string_of_label l ^ ":"
     | `Goto(l) -> 
@@ -217,11 +212,16 @@ and string_of_stmt : stmt -> string =
       "  return;"
     | `Nop -> ""
 
-  and string_of_decl : local_decl -> string = 
-    function 
-      | `Temp_decl(`Temp(t), ty) -> 
-      "  " ^ string_of_ty ty ^ " " ^ string_of_temp t ^ ";"
+and string_of_decl : local_decl -> string = 
+  function 
+    | `Temp_decl(`Temp(t), ty) -> 
+    "  " ^ string_of_ty ty ^ " " ^ string_of_temp t ^ ";"
 
+and string_of_identity : identity -> string = 
+  function 
+  | `Identity(`Temp(t), id_value) -> 
+      "  " ^ string_of_value (`Temp(t)) ^ " := " 
+      ^ string_of_identity_value id_value ^ ";"
 
 and string_of_expr : expr -> string = 
   function 
@@ -266,11 +266,12 @@ and string_of_immediate_list : immediate list -> string =
                  ^ string_of_immediate_list xl
 
 let string_of_func : func -> string = 
-  fun { func_name; func_args; func_ret; local_decls; func_body } -> 
+  fun { func_name; func_args; func_ret; identities; local_decls; func_body } -> 
     "\nBeginFunc " ^ Symbol.name func_name 
     ^ " : " ^ string_of_ty_list func_args ^ " -> " 
     ^ string_of_ty func_ret ^ "\n"
     ^ (List.fold_left (fun acc decl -> acc ^ string_of_decl decl ^ "\n") "" local_decls)
+    ^ (List.fold_left (fun acc idt -> acc ^ string_of_identity idt ^ "\n") "" identities)
     ^ (List.fold_left (fun acc stmt -> acc ^ string_of_stmt stmt ^ "\n") "" func_body)
     ^ "EndFunc\n"
     

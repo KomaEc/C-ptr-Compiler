@@ -348,18 +348,14 @@ let rec trans_stmt : status -> var_env -> str_env -> stmt -> P.t =
               let t = newtemp ~hint:id () in 
               (* don't emit declaration, since it must've been defined before *)
               (`Temp(t), ty) 
-            | Env.Parameter(pos, ty, temp_op_ref) -> 
+            | Env.Parameter(_, ty, temp_op_ref) -> 
               begin
                 match !temp_op_ref with 
                   | Some(t) -> (`Temp(t), ty) 
                   | None -> 
             (* TODO : !!! modify here! 
              * Move all the identity to the front! *)
-                    let t = newtemp () in 
-                    let () = temp_op_ref := Some(t) in
-                    let () = emit_local_def t ty in 
-                    let () = emit_stmt (`Identity(`Temp(t), `Parameter_ref(pos))) in 
-                    (`Temp(t), ty)
+                   assert false
               end
             | Env.Global(ty) -> 
               (`Static_field_ref(id), ty)
@@ -661,7 +657,7 @@ let rec trans_stmt : status -> var_env -> str_env -> stmt -> P.t =
           List.iteri
             (fun i ty -> 
               let t = newtemp () in
-              let () = emit_stmt (`Identity(`Temp(t), `Parameter_ref(i))) in
+              let () = emit_identity (`Identity(`Temp(t), `Parameter_ref(i))) in
               entry_list_ref := Env.Parameter(i, ty, ref (Some t)) :: !entry_list_ref)
               ty_list in 
         let entry_list = List.rev !entry_list_ref in

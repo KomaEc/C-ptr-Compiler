@@ -38,6 +38,12 @@ let glb_class_sig_tbl_ref : (Symbol.t * ty) list Symbol.table ref
 
 (* TODO: get glb_class_sig_tbl *)
 
+let cur_identities : M.identity list ref = 
+  ref [] 
+
+let emit_identity : M.identity -> unit = 
+  fun idt -> cur_identities := idt :: !cur_identities
+
 
 let cur_local_def : (Temp.t * ty) list ref = 
   ref [] 
@@ -73,6 +79,8 @@ let end_function () =
     |> List.map (fun (t, ty) -> `Temp_decl(`Temp(t), ty))
     in 
   let stmt_list = List.rev !cur_func_body in
+  let identities = !cur_identities in
+  let () = cur_identities := [] in
   let () = cur_local_def := [] in 
   let () = cur_func_body := [] in
   let func : M.func = 
@@ -82,6 +90,7 @@ let end_function () =
           { func_name = name; 
             func_args = ty_list; 
             func_ret = ty;
+            identities = identities;
             local_decls = decl_list; 
             func_body = stmt_list; }
         | _ -> assert false
