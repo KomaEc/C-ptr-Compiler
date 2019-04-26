@@ -268,12 +268,8 @@ let rec trans_stmt : status -> var_env -> str_env -> stmt -> P.t =
         let () = emit_stmt (`Assign(`Temp(t), rvalue)) in 
         `Temp(t)
 
-  and var_to_rvalue : M.var -> M.rvalue = 
-    function 
-    | `Temp(t) -> `Temp(t) 
-    | `Array_ref(t, i) -> `Array_ref(t, i)
-    | `Instance_field_ref(t, fsig) -> `Instance_field_ref(t, fsig)
-    | `Static_field_ref(id) -> `Static_field_ref(id)
+  and var_to_rvalue : M.var -> M.rvalue =
+    fun var -> (var :> M.rvalue)
 
   and var_to_local : ty -> M.var -> Temp.t = fun ty ->
     function 

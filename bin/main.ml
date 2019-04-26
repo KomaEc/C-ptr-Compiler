@@ -10,6 +10,7 @@ module Basic_block = Cm_core.Basic_block
 open Cm_core.Printer
 open Cm_core.Semant
 open Cm_core.Support.Error
+module Dfa = Cm_core.Dfa
 
 let print_position outx lexbuf = 
   let pos = lexbuf.lex_curr_p in 
@@ -74,8 +75,8 @@ let () =
           print_endline "\nTranslating to Mimple...\n";
           Mimple.print_prog prog;
           print_newline ();
-          (*print_endline "partitionning...";
-          Basic_block.print_good_prog prog;*)
+          print_string "Analysis Result : \n\n";
+          Dfa.analysis_prog prog;
           close_in inx
           )
   | _ -> fprintf stderr "Too many arguments! Expected 1\n"; exit(0)

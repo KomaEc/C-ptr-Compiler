@@ -156,18 +156,12 @@ let simplify_func : func -> func =
 
 (* Printing Utility *)
 
- let var_to_rvalue : var -> rvalue = 
-   function 
-     | `Temp(t) -> `Temp(t) 
-     | `Array_ref(t, i) -> `Array_ref(t, i)
-     | `Instance_field_ref(t, id) -> `Instance_field_ref(t, id)
-     | `Static_field_ref(id) -> `Static_field_ref(id)
+let var_to_rvalue : var -> rvalue = 
+  fun x -> (x :> rvalue)
 
 
 let immediate_to_rvalue : immediate -> rvalue = 
-  function 
-    | `Temp(t) -> `Temp(t) 
-    | `Const(c) -> `Const(c)
+  fun x -> (x :> rvalue)
 
 let string_of_const : const -> string = 
   function
@@ -202,30 +196,30 @@ and string_of_stmt : stmt -> string =
   function 
     | `Assign(var, rvalue) -> 
       "  " ^ string_of_value (var_to_rvalue var) ^ " = " ^ string_of_value rvalue 
-      ^ ";\n"
+      ^ ";"
     | `Identity(`Temp(t), id_value) -> 
       "  " ^ string_of_value (`Temp(t)) ^ " := " 
-      ^ string_of_identity_value id_value ^ ";\n"
+      ^ string_of_identity_value id_value ^ ";"
     | `Label(l) -> 
-      string_of_label l ^ ":\n"
+      string_of_label l ^ ":"
     | `Goto(l) -> 
-      "  goto " ^ string_of_label l ^ ";\n"
+      "  goto " ^ string_of_label l ^ ";"
     | `If(`Temp(t), l) -> 
-      "  if " ^ string_of_temp t ^ " goto " ^ string_of_label l ^ ";\n"
+      "  if " ^ string_of_temp t ^ " goto " ^ string_of_label l ^ ";"
     | `If(`Rel(_) as rexpr, l) -> 
-      "  if " ^ string_of_expr rexpr ^ " goto " ^ string_of_label l ^ ";\n"
+      "  if " ^ string_of_expr rexpr ^ " goto " ^ string_of_label l ^ ";"
     | `Static_invoke(_) as expr -> 
-      "  " ^ string_of_expr expr ^ ";\n"
+      "  " ^ string_of_expr expr ^ ";"
     | `Ret(i) -> 
-      "  return " ^ string_of_value (immediate_to_rvalue i) ^ ";\n"
+      "  return " ^ string_of_value (immediate_to_rvalue i) ^ ";"
     | `Ret_void -> 
-      "  return;\n"
+      "  return;"
     | `Nop -> ""
 
   and string_of_decl : local_decl -> string = 
     function 
       | `Temp_decl(`Temp(t), ty) -> 
-      "  " ^ string_of_ty ty ^ " " ^ string_of_temp t ^ ";\n"
+      "  " ^ string_of_ty ty ^ " " ^ string_of_temp t ^ ";"
 
 
 and string_of_expr : expr -> string = 
@@ -275,8 +269,8 @@ let string_of_func : func -> string =
     "\nBeginFunc " ^ Symbol.name func_name 
     ^ " : " ^ string_of_ty_list func_args ^ " -> " 
     ^ string_of_ty func_ret ^ "\n"
-    ^ (List.fold_left (fun acc decl -> acc ^ string_of_decl decl) "" local_decls)
-    ^ (List.fold_left (fun acc stmt -> acc ^ string_of_stmt stmt) "" func_body)
+    ^ (List.fold_left (fun acc decl -> acc ^ string_of_decl decl ^ "\n") "" local_decls)
+    ^ (List.fold_left (fun acc stmt -> acc ^ string_of_stmt stmt ^ "\n") "" func_body)
     ^ "EndFunc\n"
     
 
