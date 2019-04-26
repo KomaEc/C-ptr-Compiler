@@ -61,8 +61,32 @@ let calculate_pred_succ (instrs : M.stmt array) : int list array * int list arra
 
 module LV = struct 
 
+  type xxx = M.immediate -> T.t list
 
+  let rec temps_in_rvalue : M.rvalue -> T.t list = function 
+    | `Temp(t) -> [t]
+    | `Expr(expr) -> temps_in_expr expr 
+    | `Array_ref(i1, i2) -> temps_in_immediate i1 @ temps_in_immediate i2 
+    | `Instance_field_ref(i, _) -> temps_in_immediate i 
+    | _ -> [] 
+  
+  and temps_in_expr : M.expr -> T.t list = function 
+    | `Bin(i1, _, i2) | `Rel(i1, _, i2) -> 
+      temps_in_immediate i1 @ temps_in_immediate i2 
+    | `Static_invoke(_, i_list) -> 
+      List.fold_left (fun acc i -> temps_in_immediate i @ acc) [] i_list 
+    | `New_array_expr(_, i) -> temps_in_immediate i 
+    | _ -> [] 
 
+  and temps_in_immediate : M.immediate -> T.t list = 
+    fun x -> temps_in_rvalue (x :> M.rvalue)
+
+  and temps_in_var : M.var -> T.t list = 
+    fun x -> temps_in_rvalue (x :> M.rvalue)
+
+  and temps_in_condition : M.condition -> T.t list = function 
+    | `Temp(t) -> [t] 
+    | `Rel(x) -> temps_in_expr (`Rel(x))
 
 
   (*
@@ -117,8 +141,8 @@ let print_stmt_array : M.stmt array -> int list array -> int list array -> unit 
   Array.iteri
   (fun i stmt -> 
   print_int i; print_string 
-  ("\t !!! pred : " ^ (string_of_list pred.(i)) 
-  ^ ". !!! succ : " ^ (string_of_list succ.(i)) 
+  ("\tpred : " ^ (string_of_list pred.(i)) 
+  ^ ". succ : " ^ (string_of_list succ.(i)) 
   ^ "\t\t\t" ^ M.string_of_stmt stmt ^ "\n"))
   stmt_array
 

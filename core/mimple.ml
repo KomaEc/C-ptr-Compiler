@@ -86,6 +86,7 @@ and func =
   {  func_name : Symbol.t;
      func_args : ty list;
      func_ret : ty;
+     (* TODO : add identity declaration!!! *)
      local_decls : local_decl list;
      func_body : stmt list
   }
