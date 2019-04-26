@@ -89,6 +89,10 @@ module LV = struct
     | `Rel(x) -> temps_in_expr (`Rel(x))
 
 
+
+  (* TODO : collect all the temperories!!! *)
+
+
   (*
 
   let gen_kill : M.stmt -> T.t Bs.t * T.t Bs.t = 
@@ -111,14 +115,6 @@ let live_vars (instrs : M.stmt array) : Temp.t dfa =
 
 
 type 'a result = 'a Bs.t array
-
-let pred (instrs : M.stmt array) : int -> int list = 
-  let pred, _ = calculate_pred_succ instrs in 
-  Array.unsafe_get pred
-
-let succ (instrs : M.stmt array) : int -> int list = 
-  let _, succ = calculate_pred_succ instrs in 
-  Array.unsafe_get succ
 
 let do_dfa (_ : 'a dfa) : 'a result = 
   [||]
