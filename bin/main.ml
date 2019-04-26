@@ -74,8 +74,8 @@ let () =
           print_endline "\nTranslating to Mimple...\n";
           Mimple.print_prog prog;
           print_newline ();
-          print_endline "partitionning...";
-          Basic_block.print_good_prog prog;
+          (*print_endline "partitionning...";
+          Basic_block.print_good_prog prog;*)
           close_in inx
           )
   | _ -> fprintf stderr "Too many arguments! Expected 1\n"; exit(0)

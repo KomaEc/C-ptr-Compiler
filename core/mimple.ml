@@ -29,6 +29,8 @@ and const = [
  ]
 
  and label = Temp.label 
+ (* TODO : change label to a variant type 
+  * Label of Temp.label | Line_num of int *)
 
  and rvalue = [
    | `Temp of Temp.t
@@ -100,7 +102,7 @@ let simplify_func_body : stmt list -> stmt list = fun stmt_list ->
     match stmt with 
       | `Label(l) -> S.enter l (UF.fresh l) prev
       | _ -> prev) S.empty stmt_list in
-  let rec union : stmt list -> stmt list = 
+  let rec dedup : stmt list -> stmt list = 
     function 
       | [] -> []
       | [s] -> [s]
@@ -109,11 +111,15 @@ let simplify_func_body : stmt list -> stmt list = fun stmt_list ->
           match s, s' with 
           (* [!!!] Problematic, since this label can be function 
            * Consider reveal the label type in Temp ??? *)
+          (* [!!!] Problematic!!!! Can [`Label l] and 
+           * [`Goto l'] really be pruned?????? 
+           * I think so. But what if there's a jump
+           * -to-nowhere "goto" ?? Cyclic? *)
             | `Label l, `Label l' | `Label l, `Goto l' ->
               UF.union (S.lookup l label_to_point) 
               (S.lookup l' label_to_point);
-              union sl
-            | _ -> s :: union sl
+              dedup sl
+            | _ -> s :: dedup sl
         end in
   let get_repr : label -> label = fun l ->
     let point = S.lookup  l label_to_point in 
@@ -124,7 +130,7 @@ let simplify_func_body : stmt list -> stmt list = fun stmt_list ->
       | `Goto(l) -> `Goto(get_repr l) 
       | `Label(l) -> `Label(get_repr l)
       | _ as s -> s in
-  List.map substitute (union stmt_list)
+  List.map substitute (dedup stmt_list)
 
 let rec simple_jump_peephole : stmt list -> stmt list =
     function 
