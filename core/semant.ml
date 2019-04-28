@@ -24,7 +24,7 @@ exception Ignore_Non_Void of info
 exception Glb_Const of info
 
 
-module type env = sig 
+module type ENV = sig 
 
   type ty
   type entry = Local of ty | Parameter of int * ty * Temp.t option ref | Global of ty | Func of ty list * ty 
@@ -34,7 +34,7 @@ module type env = sig
   val base_venv : entry Symbol.table
 end
 
-module Env : env with type ty = Ast.ty = struct 
+module Env : ENV with type ty = Ast.ty = struct 
   type ty = Ast.ty
   type entry = Local of ty | Parameter of int * ty * Temp.t option ref | Global of ty | Func of ty list * ty 
   let base_senv = Symbol.empty 

@@ -18,9 +18,9 @@ type 'a dfa = {
   transfer : int -> 'a Bs.t -> 'a Bs.t; (* Transfer function at position i *)
   entry_or_exit_facts : 'a Bs.t; (* facts assumed at program entry (fwd analysis) or exit (bkwd analysis) *)
   bottom : 'a Bs.t; (* initial sets of facts at all other program points *)
-}
 
-type 'a t = 'a dfa
+  (*  TODO : add init value !!! *)
+}
 
 let calculate_pred_succ (instrs : M.stmt array) : int list array * int list array = 
   let length = Array.length instrs in 
@@ -133,8 +133,64 @@ let live_vars (instrs : M.stmt array) : Temp.t dfa =
 
 type 'a result = 'a Bs.t array
 
-let do_dfa (_ : 'a dfa) : 'a result = 
-  [||]
+let do_dfa (dfa : 'a dfa) : 'a result = 
+
+  let swap_pair (a, b) = (b, a) in
+
+  let worklist : int Queue.t = Queue.create ()
+
+  and length = Array.length dfa.instrs in 
+
+  let res = Array.make length dfa.bottom 
+
+  and default_val = dfa.bottom
+
+  and pred, succ = 
+    calculate_pred_succ dfa.instrs
+    |> (match dfa.dir with 
+         | D_Forward -> fun x -> x 
+         | D_Backward -> swap_pair) in
+
+  let init () = 
+    match dfa.dir with 
+      | D_Forward -> 
+        Queue.add 0 worklist
+      | D_Backward -> 
+        Array.iteri 
+        (fun i -> 
+        function 
+          | `Ret(_) | `Ret_void -> Queue.add i worklist 
+          | _ -> ()) dfa.instrs
+    in
+
+  let meet = 
+    match dfa.may_must with 
+      | K_May -> Bs.union 
+      | K_Must -> Bs.inter
+    in
+
+(* TODO : if backward, instrs need to be reversed?
+ * but pred and succ are already been swapped, 
+ * are u sure? *)
+
+  let run_worklist () = 
+    while not (Queue.is_empty worklist) do
+      let i = Queue.pop worklist in 
+      let this_input = List.fold_left
+      (fun acc j -> meet res.(j) acc) default_val pred.(i) in 
+      let new_output = dfa.transfer i this_input in
+      match Bs.equal new_output res.(i) with 
+        | true -> () 
+        | false -> 
+          res.(i) <- new_output;
+          List.iter (fun k -> Queue.add k worklist) succ.(i)
+    done in
+
+  begin 
+    init ();
+    run_worklist ();
+    res
+  end
 
 
 
