@@ -213,11 +213,7 @@ let do_dfa (dfa : 'a dfa) : 'a result =
       | K_May -> Bs.union 
       | K_Must -> Bs.inter
     in
-
-(* TODO : if backward, instrs need to be reversed?
- * but pred and succ are already been swapped, 
- * are u sure? *)
-
+    
   let run_worklist () = 
     while not (Queue.is_empty worklist) do
       let i = Queue.pop worklist in 
