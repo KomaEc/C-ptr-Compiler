@@ -16,11 +16,13 @@ let mkempty : 'a list -> 'a t = fun all ->
   end; (elt_to_int, int_to_elt, Bitv.create length false)
 
 
-let insert : 'a -> 'a t -> 'a t = fun x (tbl1, tbl2, bitv) ->  
+let insert : 'a -> 'a t -> 'a t = fun x (tbl1, tbl2, bitv) -> 
+  let bitv = Bitv.copy bitv in 
   Bitv.set bitv (Hashtbl.find tbl1 x) true; (tbl1, tbl2, bitv)
   
 
-let remove : 'a -> 'a t -> 'a t = fun x (tbl1, tbl2, bitv) ->  
+let remove : 'a -> 'a t -> 'a t = fun x (tbl1, tbl2, bitv) ->
+  let bitv = Bitv.copy bitv in   
   Bitv.set bitv (Hashtbl.find tbl1 x) false; (tbl1, tbl2, bitv)
 
 let mem : 'a -> 'a t -> bool = fun x (tbl1, _, bitv) -> 
@@ -53,3 +55,9 @@ let equal : 'a t -> 'a t -> bool =
     Bitv.iteri_true
       (fun i -> if not (Bitv.get bv2 i) then res := false)
         bv1; !res
+
+
+let to_list : 'a t -> 'a list = 
+  fun (_, id_to_elt, bv) -> 
+    let id_list = Bitv.to_list bv in 
+    List.map (fun id -> Hashtbl.find id_to_elt id) id_list

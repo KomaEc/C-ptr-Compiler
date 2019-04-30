@@ -37,3 +37,6 @@ val negate : 'a t -> 'a t
 (* Return true iff sets are equal. Raises an exception if sets not
    derived from same mkempty call. *)
 val equal : 'a t -> 'a t -> bool
+
+
+val to_list : 'a t -> 'a list

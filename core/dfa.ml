@@ -2,6 +2,7 @@ module Bs = Bvset
 module M = Mimple
 module S = Symbol
 module T = Temp
+module Ty = Types
 
 type dir_type = 
   | D_Forward 
@@ -56,6 +57,9 @@ let calculate_pred_succ (instrs : M.stmt array) : int list array * int list arra
         succ.(i) <- [i+1]
       | _ -> ()) instrs
   end; pred, succ
+  
+
+type 'a result = 'a Bs.t array
 
 
 
@@ -110,11 +114,47 @@ module LiveVariable = struct
         fun pre_fact -> gen pre_fact tis
       | _ -> fun x -> x
 
+  let string_of_result : T.t Bs.t -> string = 
+    let rec string_of_temps = 
+      function 
+        | [] -> ""
+        | [t] -> T.string_of_temp t 
+        | t :: tl -> 
+          T.string_of_temp t ^ ", " ^ string_of_temps tl in 
+    fun x -> string_of_temps (Bs.to_list x)
+
+  let string_of_func_with_result : M.func -> T.t result -> string = 
+    let open Ty in 
+    let open M in 
+    fun { func_name; func_args; func_ret; identities; local_decls; func_body } 
+        res ->
+      let res = Array.to_list res in
+      "\nBeginFunc " ^ Symbol.name func_name 
+      ^ " : " ^ string_of_ty_list func_args ^ " -> " 
+      ^ string_of_ty func_ret ^ "\n"
+      ^ (List.fold_left (fun acc decl -> acc ^ string_of_decl decl ^ "\n") "" local_decls)
+      ^ (List.fold_left (fun acc idt -> acc ^ string_of_identity idt ^ "\n") "" identities)
+      ^ (List.fold_left2 
+        (fun acc stmt res -> acc 
+        ^ "lv : " ^ string_of_result res ^ "\n  "
+        ^ string_of_stmt stmt ^ "\n") "" func_body res)
+      ^ "EndFunc\n"
+
+
 end
 
-let live_vars (instrs : M.stmt array) : Temp.t dfa = 
-  let open LiveVariable in
-  let bvs = Bs.mkempty [] in 
+module Lv = LiveVariable
+
+
+let live_vars (func : M.func) : Temp.t dfa = 
+  let open Lv in 
+  let locals : T.t list = 
+    List.fold_left 
+    (fun acc (`Temp_decl(`Temp(t), _)) ->
+    t :: acc) [] func.local_decls in
+  let bvs = Bs.mkempty locals in 
+  let instrs = 
+    func.func_body |> Array.of_list in
   let transfer_array : (T.t Bs.t -> T.t Bs.t) array = 
     Array.fold_left
     (fun acc stmt -> (transfer stmt) :: acc) [] instrs
@@ -128,22 +168,20 @@ let live_vars (instrs : M.stmt array) : Temp.t dfa =
     transfer = transfer;
     entry_or_exit_facts = bvs;
     bottom = bvs;
-  }
+  } 
 
-
-type 'a result = 'a Bs.t array
 
 let do_dfa (dfa : 'a dfa) : 'a result = 
 
-  let swap_pair (a, b) = (b, a) in
+  let swap_pair (a, b) = (b, a) 
 
-  let worklist : int Queue.t = Queue.create ()
+  and worklist : int Queue.t = Queue.create ()
 
-  and length = Array.length dfa.instrs in 
+  and length : int = Array.length dfa.instrs in 
 
-  let res = Array.make length dfa.bottom 
+  let res : 'a result = Array.make length dfa.bottom 
 
-  and default_val = dfa.bottom
+  and default_val : 'a Bs.t = dfa.bottom
 
   and pred, succ = 
     calculate_pred_succ dfa.instrs
@@ -215,14 +253,19 @@ let print_stmt_array : M.stmt array -> int list array -> int list array -> unit 
   ^ "\t\t\t" ^ M.string_of_stmt stmt ^ "\n"))
   stmt_array
 
+let analysis_func : M.func -> string = 
+  fun func -> 
+  let res = 
+    func
+    |> live_vars 
+    |> do_dfa in 
+  LiveVariable.string_of_func_with_result func res
+
+
 let analysis_prog : M.prog -> unit = 
   fun prog -> 
   List.iter 
   (fun func -> 
-  let instrs = M.(func.func_body) in 
-  let instrs = Array.of_list instrs in
-  let pred, succ = calculate_pred_succ instrs in 
-  print_stmt_array instrs pred succ) prog
-  
+  print_endline (analysis_func func)) prog
   
   
