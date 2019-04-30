@@ -19,7 +19,6 @@ let mkempty : 'a list -> 'a t = fun all ->
 let insert : 'a -> 'a t -> 'a t = fun x (tbl1, tbl2, bitv) -> 
   let bitv = Bitv.copy bitv in 
   Bitv.set bitv (Hashtbl.find tbl1 x) true; (tbl1, tbl2, bitv)
-  
 
 let remove : 'a -> 'a t -> 'a t = fun x (tbl1, tbl2, bitv) ->
   let bitv = Bitv.copy bitv in   

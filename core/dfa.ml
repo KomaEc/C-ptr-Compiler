@@ -90,12 +90,13 @@ module LiveVariable = struct
     | `Temp(t) -> [t] 
     | `Rel(x) -> temps_in_expr (`Rel(x))
 
-  
+
   let gen : T.t Bs.t -> T.t list -> T.t Bs.t = 
-    List.fold_left (fun acc t -> Bs.insert t acc)
+    List.fold_left (fun acc t -> Bs.insert t acc) 
   
   let kill : T.t Bs.t -> T.t list -> T.t Bs.t = 
     List.fold_left (fun acc t -> Bs.remove t acc)
+
 
   let transfer : M.stmt -> T.t Bs.t -> T.t Bs.t = 
     function
@@ -151,7 +152,11 @@ let live_vars (func : M.func) : Temp.t dfa =
   let locals : T.t list = 
     List.fold_left 
     (fun acc (`Temp_decl(`Temp(t), _)) ->
-    t :: acc) [] func.local_decls in
+    t :: acc) [] func.local_decls
+    |> fun base ->
+    List.fold_left 
+    (fun acc (`Identity(`Temp(t), _)) -> 
+    t :: acc) base func.identities in
   let bvs = Bs.mkempty locals in 
   let instrs = 
     func.func_body |> Array.of_list in
@@ -177,9 +182,9 @@ let do_dfa (dfa : 'a dfa) : 'a result =
 
   and worklist : int Queue.t = Queue.create ()
 
-  and length : int = Array.length dfa.instrs in 
-
-  let res : 'a result = Array.make length dfa.bottom 
+  and length : int = Array.length dfa.instrs in
+  
+  let res : 'a result = Array.make length dfa.bottom
 
   and default_val : 'a Bs.t = dfa.bottom
 
@@ -197,11 +202,13 @@ let do_dfa (dfa : 'a dfa) : 'a result =
         Array.iteri 
         (fun i -> 
         function 
-          | `Ret(_) | `Ret_void -> Queue.add i worklist 
+          | `Ret(_) -> Queue.add i worklist
+          | `Ret_void -> (*Queue.add i worklist;*)
+            List.iter (fun k -> Queue.add k worklist) succ.(i) 
           | _ -> ()) dfa.instrs
     in
 
-  let meet = 
+  let meet : 'a Bs.t -> 'a Bs.t -> 'a Bs.t = 
     match dfa.may_must with 
       | K_May -> Bs.union 
       | K_Must -> Bs.inter
@@ -259,7 +266,7 @@ let analysis_func : M.func -> string =
     func
     |> live_vars 
     |> do_dfa in 
-  LiveVariable.string_of_func_with_result func res
+  Lv.string_of_func_with_result func res
 
 
 let analysis_prog : M.prog -> unit = 
