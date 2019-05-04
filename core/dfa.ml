@@ -97,7 +97,6 @@ module LiveVariable = struct
   let kill : T.t Bs.t -> T.t list -> T.t Bs.t = 
     List.fold_left (fun acc t -> Bs.remove t acc)
 
-
   let transfer : M.stmt -> T.t Bs.t -> T.t Bs.t = 
     function
       | `Assign(var, rvalue) -> 
@@ -144,10 +143,17 @@ module LiveVariable = struct
 
 end
 
+
+module ReachingDefinition = struct
+end 
+
+module Rd = ReachingDefinition
+
+
 module Lv = LiveVariable
 
 
-let live_vars (func : M.func) : Temp.t dfa = 
+let live_vars (func : M.func) : T.t dfa = 
   let open Lv in 
   let locals : T.t list = 
     List.fold_left 
@@ -174,6 +180,25 @@ let live_vars (func : M.func) : Temp.t dfa =
     entry_or_exit_facts = bvs;
     bottom = bvs;
   } 
+
+
+let reach_defs (func : M.func) : int dfa = 
+  let instrs = Array.of_list func.func_body in 
+  let defs = 
+    let defs_ref = ref [] in
+    Array.iteri (fun i -> 
+    function 
+      | `Assign(_) -> defs_ref := i :: !defs_ref
+      | _ -> ()) instrs; !defs_ref in 
+  let bvs = Bs.mkempty defs in 
+  {
+    instrs; 
+    dir = D_Forward;
+    may_must = K_May;
+    transfer = (fun _  x -> x);
+    entry_or_exit_facts = bvs;
+    bottom = bvs;
+  }
 
 
 let do_dfa (dfa : 'a dfa) : 'a result = 

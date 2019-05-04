@@ -1,3 +1,4 @@
 
 (library
-  (name cm_util))
+  (name cm_util)
+  (libraries core base))
