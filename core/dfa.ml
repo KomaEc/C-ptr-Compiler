@@ -143,13 +143,6 @@ module LiveVariable = struct
 
 end
 
-
-module ReachingDefinition = struct
-end 
-
-module Rd = ReachingDefinition
-
-
 module Lv = LiveVariable
 
 
@@ -227,7 +220,8 @@ let do_dfa (dfa : 'a dfa) : 'a result =
         Array.iteri 
         (fun i -> 
         function 
-          | `Ret(_) -> Queue.add i worklist
+          | `Ret(_) -> Queue.add i worklist;
+            
           | `Ret_void -> (*Queue.add i worklist;*)
             List.iter (fun k -> Queue.add k worklist) succ.(i) 
           | _ -> ()) dfa.instrs
