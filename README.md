@@ -1,6 +1,6 @@
 # Cm-Compiler
 ## Intro
-A compiler for a syntactically C-like imperative programming language (its semantics are closer to Java. For example, there's no pointer. The types are divided into two groups, primitive type and object type. Values of object types are passed by reference, etc.), supporting (currently) one-dimentional array and struct. (Under development)
+A compiler for a syntactically C-like imperative programming language (its semantics are closer to Java. For example, there's no pointer. The types are divided into two groups, primitive type and object type. Values of object types are passed by reference, etc.), supporting (currently) one-dimentional array and struct. (Under construction)
 
 ## Goals
 A compiler for an imperative programming language, with a middle end (Mimple) supporting pointer analysis. The final objective is to compile the intermmediate representation to Lua bytecode.
