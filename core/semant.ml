@@ -483,16 +483,16 @@ let rec trans_stmt : status -> var_env -> str_env -> stmt -> P.t =
 
     and cond_trexp : exp -> Temp.label -> Temp.label -> unit = fun exp lt lf -> 
       match exp with 
-        | True(_) -> emit_stmt (`Goto lt) 
-        | False(_) -> emit_stmt (`Goto lf) 
+        | True(_) -> emit_stmt (`Goto (`Label(lt))) 
+        | False(_) -> emit_stmt (`Goto (`Label(lf))) 
         | Var(var') -> 
           let (var, ty) = trvar var' in 
           begin 
             match ty with 
               | Bool -> 
                 let t = var_to_local Bool var in 
-                let () = emit_stmt (`If(`Temp(t), lt)) in 
-                emit_stmt (`Goto(lf))
+                let () = emit_stmt (`If(`Temp(t), (`Label(lt)))) in 
+                emit_stmt (`Goto((`Label(lf))))
               | _ -> raise (Ill_Typed (extract_info_var var'))
           end 
         | Bin(expr1, And, expr2, _) -> 
@@ -514,21 +514,21 @@ let rec trans_stmt : status -> var_env -> str_env -> stmt -> P.t =
         | Bin(expr1, Lt, expr2, _) -> 
           let t1 = check_int expr1 |> rvalue_to_immediate Int in 
           let t2 = check_int expr2 |> rvalue_to_immediate Int in 
-          let () = emit_stmt (`If(`Rel(t1, `Lt, t2), lt)) in 
-          emit_stmt (`Goto lf)
+          let () = emit_stmt (`If(`Rel(t1, `Lt, t2), (`Label(lt)))) in 
+          emit_stmt (`Goto (`Label(lf)))
         | Bin(expr1, Gt, expr2, _) -> 
           let t1 = check_int expr1 |> rvalue_to_immediate Int in 
           let t2 = check_int expr2 |> rvalue_to_immediate Int in 
-          let () = emit_stmt (`If(`Rel(t1, `Gt, t2), lt)) in 
-          emit_stmt (`Goto lf)
+          let () = emit_stmt (`If(`Rel(t1, `Gt, t2), (`Label(lt)))) in 
+          emit_stmt (`Goto (`Label(lf)))
         | Bin(expr1, Eq, expr2, i) -> 
           let (i1, ty1) = trexpr expr1 in 
           let (i2, ty2) = trexpr expr2 in 
           if not (ty_eq ty1 ty2) then raise (Ill_Typed i)
           else let t1 = rvalue_to_immediate ty1 i1 in 
                let t2 = rvalue_to_immediate ty2 i2 in 
-               let () = emit_stmt (`If(`Rel(t1, `Eq, t2), lt)) in 
-               emit_stmt (`Goto lf)
+               let () = emit_stmt (`If(`Rel(t1, `Eq, t2), (`Label(lt)))) in 
+               emit_stmt (`Goto (`Label(lf)))
         | Un(_, expr, _) -> 
           cond_trexp expr lf lt 
         | App(id, expr_list, i) -> 
@@ -550,8 +550,8 @@ let rec trans_stmt : status -> var_env -> str_env -> stmt -> P.t =
                           let t = newtemp () in 
                           let () = emit_local_def t Bool in 
                           let () = emit_stmt (`Assign(`Temp(t), `Expr(`Static_invoke((l, ty_list'', type_convert ty), t_list)))) in 
-                          let () = emit_stmt (`If(`Temp(t), lt)) in 
-                          emit_stmt (`Goto lf)
+                          let () = emit_stmt (`If(`Temp(t), (`Label(lt)))) in 
+                          emit_stmt (`Goto (`Label(lf)))
                         | _ -> raise (Ill_Typed i)
                     end
                   end
@@ -585,7 +585,7 @@ let rec trans_stmt : status -> var_env -> str_env -> stmt -> P.t =
         let () = cond l1 l2 in 
         let () = emit_stmt (`Label(l1)) in 
         let prop_ret = trstmt s in 
-        let () = emit_stmt (`Goto(l3)) in 
+        let () = emit_stmt (`Goto((`Label(l3)))) in 
         let () = emit_stmt (`Label(l2)) in 
         let prop_ret' = trstmt s' in 
         let () = emit_stmt (`Label(l3)) in 
@@ -608,7 +608,7 @@ let rec trans_stmt : status -> var_env -> str_env -> stmt -> P.t =
         let () = cond l2 l3 in
         let () = emit_stmt (`Label(l2)) in 
         let _ = trstmt s in 
-        let () = emit_stmt (`Goto(l1)) in 
+        let () = emit_stmt (`Goto((`Label(l1)))) in 
         let () = emit_stmt (`Label(l3)) in Nret
       | Return(Void_exp, _) -> 
         let () = emit_stmt `Ret_void in Ret(Void)

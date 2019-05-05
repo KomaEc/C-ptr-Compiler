@@ -38,11 +38,11 @@ let calculate_pred_succ (instrs : M.stmt array) : int list array * int list arra
     Array.iteri 
     (fun i stmt -> 
     match stmt with 
-      | `Goto(l) -> 
+      | `Goto(`Label(l)) -> 
         let j = S.lookup l label_to_index in 
         pred.(j) <- i :: pred.(j);
         succ.(i) <- j :: succ.(i) 
-      | `If(_, l) -> 
+      | `If(_, `Label(l)) -> 
         let j = S.lookup l label_to_index in 
         pred.(j) <- i :: pred.(j);
         succ.(i) <- [j];

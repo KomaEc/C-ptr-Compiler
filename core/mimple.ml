@@ -32,6 +32,11 @@ and const = [
  (* TODO : change label to a variant type 
   * Label of Temp.label | Line_num of int *)
 
+and target = [
+  | `Label of label 
+  | `Line_num of int
+]
+
  and rvalue = [
    | `Temp of Temp.t
    | `Const of const
@@ -48,8 +53,8 @@ and field_signature = Symbol.t * ty
 and stmt = [
    | `Assign of var * rvalue
    | `Label of label 
-   | `Goto of label 
-   | `If of condition * label
+   | `Goto of target 
+   | `If of condition * target
    | `Static_invoke of method_signature * immediate list
    | `Ret of immediate 
    | `Ret_void
@@ -120,19 +125,19 @@ let simplify_func_body : stmt list -> stmt list = fun stmt_list ->
            * [`Goto l'] really be pruned?????? 
            * I think so. But what if there's a jump
            * -to-nowhere "goto" ?? Cyclic? *)
-            | `Label l, `Label l' | `Label l, `Goto l' ->
+            | `Label l, `Label l' | `Label l, `Goto (`Label l') ->
               UF.union (S.lookup l label_to_point) 
               (S.lookup l' label_to_point);
               dedup sl
             | _ -> s :: dedup sl
         end in
   let get_repr : label -> label = fun l ->
-    let point = S.lookup  l label_to_point in 
+    let point = S.lookup l label_to_point in 
     UF.find point in
   let substitute : stmt -> stmt = 
     function 
-      | `If(cond, l) -> `If(cond, get_repr l) 
-      | `Goto(l) -> `Goto(get_repr l) 
+      | `If(cond, `Label(l)) -> `If(cond, `Label (get_repr l))
+      | `Goto(`Label(l)) -> `Goto(`Label(get_repr l))
       | `Label(l) -> `Label(get_repr l)
       | _ as s -> s in
   List.map substitute (dedup stmt_list)
@@ -143,7 +148,7 @@ let rec simple_jump_peephole : stmt list -> stmt list =
     | [s] -> [s] 
     | s :: (s' :: sl' as sl) -> 
       match s, s' with 
-        | `Goto(l), `Label(l') when l = l' -> simple_jump_peephole sl' 
+        | `Goto(`Label(l)), `Label(l') when l = l' -> simple_jump_peephole sl' 
         | _ -> s :: simple_jump_peephole sl
 
 
@@ -191,6 +196,11 @@ and string_of_field_sig : field_signature -> string =
   fun (name, ty) -> 
     Symbol.name name ^ " : " ^ string_of_ty ty
 
+and string_of_target : target -> string = 
+  function 
+    | `Label(l) -> string_of_label l 
+    | `Line_num(i) -> string_of_int i
+
 and string_of_stmt : stmt -> string = 
   function 
     | `Assign(var, rvalue) -> 
@@ -199,11 +209,11 @@ and string_of_stmt : stmt -> string =
     | `Label(l) -> 
       string_of_label l ^ ":"
     | `Goto(l) -> 
-      "  goto " ^ string_of_label l ^ ";"
+      "  goto " ^ string_of_target l ^ ";"
     | `If(`Temp(t), l) -> 
-      "  if " ^ string_of_temp t ^ " goto " ^ string_of_label l ^ ";"
+      "  if " ^ string_of_temp t ^ " goto " ^ string_of_target l ^ ";"
     | `If(`Rel(_) as rexpr, l) -> 
-      "  if " ^ string_of_expr rexpr ^ " goto " ^ string_of_label l ^ ";"
+      "  if " ^ string_of_expr rexpr ^ " goto " ^ string_of_target l ^ ";"
     | `Static_invoke(_) as expr -> 
       "  " ^ string_of_expr expr ^ ";"
     | `Ret(i) -> 
