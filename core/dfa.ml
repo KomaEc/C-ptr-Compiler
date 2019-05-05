@@ -23,6 +23,8 @@ type 'a dfa = {
   (*  TODO : add init value !!! *)
 }
 
+(* [!!!!!!!!!!]
+ * Precondition : All the jump targets are labels *)
 let calculate_pred_succ (instrs : M.stmt array) : int list array * int list array = 
   let length = Array.length instrs in 
   let pred : int list array  = Array.make length [] in 
