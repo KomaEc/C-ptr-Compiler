@@ -350,7 +350,9 @@ let do_dfa (dfa : 'a dfa) : 'a result =
   let init () = 
     match dfa.dir with 
       | D_Forward -> 
-        (*Queue.add 0 worklist;*)
+        (* Queue.add 0 worklist;
+         * TODO : a better way to 
+         * initiate? *)
         for i = 0 to length - 1 do 
           Queue.add i worklist 
         done
