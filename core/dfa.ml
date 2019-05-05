@@ -62,7 +62,6 @@ let calculate_pred_succ (instrs : M.stmt array) : int list array * int list arra
 type 'a result = 'a Bs.t array
 
 
-
 module LiveVariable = struct 
 
   let rec temps_in_rvalue : M.rvalue -> T.t list = function 
@@ -123,6 +122,29 @@ module LiveVariable = struct
           T.string_of_temp t ^ ", " ^ string_of_temps tl in 
     fun x -> string_of_temps (Bs.to_list x)
 
+
+  let string_of_stmt_and_res 
+  = fun stmt res -> 
+    "lv : " ^ string_of_result res ^ "\n "
+    ^ M.string_of_stmt stmt ^ "\n"
+
+  let string_of_func_with_result 
+  : M.func -> T.t result -> (M.stmt -> T.t Bs.t -> string) -> string = 
+  let open Ty in 
+  let open M in 
+  fun { func_name; func_args; func_ret; identities; local_decls; func_body } 
+      res string_of_stmt_and_res ->
+    let res = Array.to_list res in
+    "\nBeginFunc " ^ Symbol.name func_name 
+    ^ " : " ^ string_of_ty_list func_args ^ " -> " 
+    ^ string_of_ty func_ret ^ "\n"
+    ^ (List.fold_left (fun acc decl -> acc ^ string_of_decl decl ^ "\n") "" local_decls)
+    ^ (List.fold_left (fun acc idt -> acc ^ string_of_identity idt ^ "\n") "" identities)
+    ^ (List.fold_left2 
+      (fun acc stmt res -> acc 
+      ^ string_of_stmt_and_res stmt res) "" func_body res)
+    ^ "EndFunc\n"  
+(*
   let string_of_func_with_result : M.func -> T.t result -> string = 
     let open Ty in 
     let open M in 
@@ -138,12 +160,128 @@ module LiveVariable = struct
         (fun acc stmt res -> acc 
         ^ "lv : " ^ string_of_result res ^ "\n  "
         ^ string_of_stmt stmt ^ "\n") "" func_body res)
-      ^ "EndFunc\n"
+      ^ "EndFunc\n"*)
 
 
 end
 
 module Lv = LiveVariable
+
+module ReachingDefinition = struct 
+
+  let rec get_def_var : M.var -> T.t option = 
+    function 
+      | `Temp(t) -> Some t 
+      | `Array_ref(a, _) -> get_def_imm a
+      | `Instance_field_ref(o, _) -> get_def_imm o 
+      | _ -> None 
+  and get_def_imm : M.immediate -> T.t option = 
+    function 
+      | `Temp(t) -> Some t 
+      | _ -> None
+
+  let get_defs_positions 
+  : M.stmt array -> int list * (int, T.t) Hashtbl.t * (T.t, int) Hashtbl.t
+  = fun instrs ->
+  let pos = ref [] in 
+  let i2d = Hashtbl.create 16 in 
+  let d2i = Hashtbl.create 16 in 
+  begin
+    Array.iteri
+    (fun i -> 
+    function 
+      | `Assign(var, _) -> 
+        begin 
+          match get_def_var var with  
+            | Some(t) -> 
+              begin 
+                pos := i :: !pos;
+                Hashtbl.add i2d i t;
+                Hashtbl.add d2i t i;
+                (* Use Hashtbl.find_all 
+                 * to find other pos later
+                 * on *)
+              end 
+            | _ -> ()
+        end 
+      | _ -> ()) instrs;
+    (!pos, i2d, d2i)
+  end
+
+  let get_trans_array 
+  : M.stmt array -> (int list * (int, T.t) Hashtbl.t * (T.t, int) Hashtbl.t)
+  -> (int Bs.t -> int Bs.t) array = 
+  fun instrs (_, i2d, d2i) -> 
+  let id = fun x -> x  
+  and length = Array.length instrs in 
+  let res = Array.make length id 
+  and gen : int -> int Bs.t -> int Bs.t = 
+    fun i bs -> Bs.insert i bs 
+  and kill : T.t -> int Bs.t -> int Bs.t = 
+    fun t bs -> 
+      List.fold_left
+      (fun acc j -> Bs.remove j acc) bs (Hashtbl.find_all d2i t) in
+  begin 
+    for i = 0 to length - 1 do 
+      match Hashtbl.find_opt i2d i with 
+        | Some(t) -> 
+          res.(i) <- (fun prev -> gen i (kill t prev)) 
+        | _ -> ()
+    done;
+    res 
+  end
+
+  let rec string_of_int_list = 
+    function 
+      | [] -> "" 
+      | [x] -> string_of_int x 
+      | x::xs -> 
+        string_of_int x ^ ", " ^ string_of_int_list xs
+  
+  let string_of_result : int Bs.t -> string = 
+    fun res -> res
+    |> Bs.to_list |> string_of_int_list
+
+
+  let string_of_stmt_and_res 
+  = fun stmt res -> 
+  M.string_of_stmt stmt ^ "\n" 
+  ^ "rd : " ^ string_of_result res ^ "\n "
+
+  let string_of_func_with_result 
+  : M.func -> int result -> (M.stmt -> int Bs.t -> string) -> string = 
+  let open Ty in 
+  let open M in 
+  fun { func_name; func_args; func_ret; identities; local_decls; func_body } 
+      res string_of_stmt_and_res ->
+    let res = Array.to_list res in
+    "\nBeginFunc " ^ Symbol.name func_name 
+    ^ " : " ^ string_of_ty_list func_args ^ " -> " 
+    ^ string_of_ty func_ret ^ "\n"
+    ^ (List.fold_left (fun acc decl -> acc ^ string_of_decl decl ^ "\n") "" local_decls)
+    ^ (List.fold_left (fun acc idt -> acc ^ string_of_identity idt ^ "\n") "" identities)
+    ^ (List.fold_left2 
+      (fun acc stmt res -> acc 
+      ^ string_of_stmt_and_res stmt res) "" func_body res)
+    ^ "EndFunc\n"  
+
+
+
+end
+
+module Rd = ReachingDefinition
+
+
+module AvailableExpression = struct 
+
+  type aexpr = [
+    | `Bin of M.immediate * M.binop * M.immediate 
+    | `Rel of M.immediate * M.relop * M.immediate
+  ]
+
+end
+
+module Ae = AvailableExpression
 
 
 let live_vars (func : M.func) : T.t dfa = 
@@ -176,19 +314,16 @@ let live_vars (func : M.func) : T.t dfa =
 
 
 let reach_defs (func : M.func) : int dfa = 
+  let open Rd in 
   let instrs = Array.of_list func.func_body in 
-  let defs = 
-    let defs_ref = ref [] in
-    Array.iteri (fun i -> 
-    function 
-      | `Assign(_) -> defs_ref := i :: !defs_ref
-      | _ -> ()) instrs; !defs_ref in 
-  let bvs = Bs.mkempty defs in 
+  let (pos, _, _) as x = get_defs_positions instrs in
+  let trans_array = get_trans_array instrs x in
+  let bvs = Bs.mkempty pos in 
   {
     instrs; 
     dir = D_Forward;
     may_must = K_May;
-    transfer = (fun _  x -> x);
+    transfer = (fun i -> trans_array.(i));
     entry_or_exit_facts = bvs;
     bottom = bvs;
   }
@@ -215,13 +350,15 @@ let do_dfa (dfa : 'a dfa) : 'a result =
   let init () = 
     match dfa.dir with 
       | D_Forward -> 
-        Queue.add 0 worklist
+        (*Queue.add 0 worklist;*)
+        for i = 0 to length - 1 do 
+          Queue.add i worklist 
+        done
       | D_Backward -> 
         Array.iteri 
         (fun i -> 
         function 
           | `Ret(_) -> Queue.add i worklist;
-            
           | `Ret_void -> (*Queue.add i worklist;*)
             List.iter (fun k -> Queue.add k worklist) succ.(i) 
           | _ -> ()) dfa.instrs
@@ -277,11 +414,16 @@ let print_stmt_array : M.stmt array -> int list array -> int list array -> unit 
 
 let analysis_func : M.func -> string = 
   fun func -> 
-  let res = 
+  let res_lv = 
     func
     |> live_vars 
-    |> do_dfa in 
-  Lv.string_of_func_with_result func res
+    |> do_dfa 
+  and res_rd = 
+    func 
+    |> reach_defs 
+    |> do_dfa in
+  Lv.string_of_func_with_result func res_lv Lv.string_of_stmt_and_res
+  ^ Rd.string_of_func_with_result func res_rd Rd.string_of_stmt_and_res
 
 
 let analysis_prog : M.prog -> unit = 
@@ -290,4 +432,12 @@ let analysis_prog : M.prog -> unit =
   (fun func -> 
   print_endline (analysis_func func)) prog
   
+
+
+
+
+
+module type AbstractDomain = sig
+  
+ end
   
