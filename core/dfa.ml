@@ -12,16 +12,31 @@ type may_must_type =
   | K_May 
   | K_Must 
 
+(*
 type 'a dfa = {
   instrs : M.stmt array;
   dir : dir_type; (* direction *)
-  may_must : may_must_type; (* may -> union or must -> intersection *)
+  meet : 'a -> 'a -> 'a;
+  transfer : int -> 'a -> 'a; (* Transfer function at position i *)
+  entry_or_exit_facts : 'a; (* facts assumed at program entry (fwd analysis) or exit (bkwd analysis) *)
+  bottom : 'a; (* initial sets of facts at all other program points *)
+
+  (*  TODO : add init value !!! *)
+}
+*)
+
+type 'a dfa = {
+  instrs : M.stmt array;
+  dir : dir_type; (* direction *)
+  meet : 'a Bs.t -> 'a Bs.t -> 'a Bs.t;
   transfer : int -> 'a Bs.t -> 'a Bs.t; (* Transfer function at position i *)
   entry_or_exit_facts : 'a Bs.t; (* facts assumed at program entry (fwd analysis) or exit (bkwd analysis) *)
   bottom : 'a Bs.t; (* initial sets of facts at all other program points *)
 
   (*  TODO : add init value !!! *)
 }
+
+
 
 (* [!!!!!!!!!!]
  * Precondition : All the jump targets are labels *)
@@ -63,7 +78,11 @@ let calculate_pred_succ (instrs : M.stmt array) : int list array * int list arra
 
 type 'a t = 'a dfa
 
-type 'a result = 'a Bs.t array
+
+
+ type 'a result = 'a Bs.t array 
+
+(*type 'a result = 'a array*)
 
 
 let do_dfa (dfa : 'a dfa) (pred : int list array) (succ : int list array)
@@ -106,11 +125,7 @@ let do_dfa (dfa : 'a dfa) (pred : int list array) (succ : int list array)
           | _ -> ()) dfa.instrs
     in
 
-  let meet : 'a Bs.t -> 'a Bs.t -> 'a Bs.t = 
-    match dfa.may_must with 
-      | K_May -> Bs.union 
-      | K_Must -> Bs.inter
-    in
+  let meet : 'a Bs.t -> 'a Bs.t -> 'a Bs.t = dfa.meet in
     
   let run_worklist () = 
     while not (Queue.is_empty worklist) do
@@ -379,7 +394,7 @@ let live_vars (func : M.func) : T.t dfa =
   {
     instrs = instrs;
     dir = D_Backward;
-    may_must = K_May;
+    meet = Bs.union;
     transfer = transfer;
     entry_or_exit_facts = bvs;
     bottom = bvs;
@@ -395,15 +410,11 @@ let reach_defs (func : M.func) : int dfa =
   {
     instrs; 
     dir = D_Forward;
-    may_must = K_May;
+    meet = Bs.union;
     transfer = (fun i -> trans_array.(i));
     entry_or_exit_facts = bvs;
     bottom = bvs;
   }
-
-
-
-
 
 
 
