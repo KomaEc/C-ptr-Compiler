@@ -61,7 +61,78 @@ let calculate_pred_succ (instrs : M.stmt array) : int list array * int list arra
   end; pred, succ
   
 
+type 'a t = 'a dfa
+
 type 'a result = 'a Bs.t array
+
+
+let do_dfa (dfa : 'a dfa) (pred : int list array) (succ : int list array)
+  : 'a result = 
+
+  let worklist : int Queue.t = Queue.create ()
+
+  and length : int = Array.length dfa.instrs in
+  
+  let res : 'a result = Array.make length dfa.bottom
+
+  and default_val : 'a Bs.t = dfa.bottom
+
+  and pred, succ = 
+  (*
+    calculate_pred_succ dfa.instrs
+    |> (match dfa.dir with 
+         | D_Forward -> fun x -> x 
+         | D_Backward -> swap_pair) in *)
+    match dfa.dir with 
+      | D_Forward -> pred, succ 
+      | D_Backward -> succ, pred in
+
+  let init () = 
+    match dfa.dir with 
+      | D_Forward -> 
+        (* Queue.add 0 worklist;
+         * TODO : a better way to 
+         * initiate? *)
+        for i = 0 to length - 1 do 
+          Queue.add i worklist 
+        done
+      | D_Backward -> 
+        Array.iteri 
+        (fun i -> 
+        function 
+          | `Ret(_) -> Queue.add i worklist;
+          | `Ret_void -> (*Queue.add i worklist;*)
+            List.iter (fun k -> Queue.add k worklist) succ.(i) 
+          | _ -> ()) dfa.instrs
+    in
+
+  let meet : 'a Bs.t -> 'a Bs.t -> 'a Bs.t = 
+    match dfa.may_must with 
+      | K_May -> Bs.union 
+      | K_Must -> Bs.inter
+    in
+    
+  let run_worklist () = 
+    while not (Queue.is_empty worklist) do
+      let i = Queue.pop worklist in 
+      let this_input = List.fold_left
+      (fun acc j -> meet res.(j) acc) default_val pred.(i) in 
+      let new_output = dfa.transfer i this_input in
+      match Bs.equal new_output res.(i) with 
+        | true -> () 
+        | false -> 
+          res.(i) <- new_output;
+          List.iter (fun k -> Queue.add k worklist) succ.(i)
+    done in
+
+  begin 
+    init ();
+    run_worklist ();
+    res
+  end
+
+
+
 
 
 module LiveVariable = struct 
@@ -331,67 +402,7 @@ let reach_defs (func : M.func) : int dfa =
   }
 
 
-let do_dfa (dfa : 'a dfa) : 'a result = 
 
-  let swap_pair (a, b) = (b, a) 
-
-  and worklist : int Queue.t = Queue.create ()
-
-  and length : int = Array.length dfa.instrs in
-  
-  let res : 'a result = Array.make length dfa.bottom
-
-  and default_val : 'a Bs.t = dfa.bottom
-
-  and pred, succ = 
-    calculate_pred_succ dfa.instrs
-    |> (match dfa.dir with 
-         | D_Forward -> fun x -> x 
-         | D_Backward -> swap_pair) in
-
-  let init () = 
-    match dfa.dir with 
-      | D_Forward -> 
-        (* Queue.add 0 worklist;
-         * TODO : a better way to 
-         * initiate? *)
-        for i = 0 to length - 1 do 
-          Queue.add i worklist 
-        done
-      | D_Backward -> 
-        Array.iteri 
-        (fun i -> 
-        function 
-          | `Ret(_) -> Queue.add i worklist;
-          | `Ret_void -> (*Queue.add i worklist;*)
-            List.iter (fun k -> Queue.add k worklist) succ.(i) 
-          | _ -> ()) dfa.instrs
-    in
-
-  let meet : 'a Bs.t -> 'a Bs.t -> 'a Bs.t = 
-    match dfa.may_must with 
-      | K_May -> Bs.union 
-      | K_Must -> Bs.inter
-    in
-    
-  let run_worklist () = 
-    while not (Queue.is_empty worklist) do
-      let i = Queue.pop worklist in 
-      let this_input = List.fold_left
-      (fun acc j -> meet res.(j) acc) default_val pred.(i) in 
-      let new_output = dfa.transfer i this_input in
-      match Bs.equal new_output res.(i) with 
-        | true -> () 
-        | false -> 
-          res.(i) <- new_output;
-          List.iter (fun k -> Queue.add k worklist) succ.(i)
-    done in
-
-  begin 
-    init ();
-    run_worklist ();
-    res
-  end
 
 
 
@@ -418,14 +429,15 @@ let print_stmt_array : M.stmt array -> int list array -> int list array -> unit 
 
 let analysis_func : M.func -> string = 
   fun func -> 
+  let pred, succ = calculate_pred_succ (Array.of_list func.func_body) in
   let res_lv = 
-    func
+    (func
     |> live_vars 
-    |> do_dfa 
+    |> do_dfa) pred succ
   and res_rd = 
-    func 
+    (func 
     |> reach_defs 
-    |> do_dfa in
+    |> do_dfa) pred succ in
   Lv.string_of_func_with_result func res_lv Lv.string_of_stmt_and_res
   ^ Rd.string_of_func_with_result func res_rd Rd.string_of_stmt_and_res
 

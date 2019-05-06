@@ -21,14 +21,14 @@ and const = [
   | `Bool_const of bool
 ]
 
- and var = [
-   | `Temp of Temp.t 
-   | `Array_ref of immediate * immediate
-   | `Instance_field_ref of immediate * field_signature
-   | `Static_field_ref of Symbol.t
- ] 
+and var = [
+  | `Temp of Temp.t 
+  | `Array_ref of immediate * immediate
+  | `Instance_field_ref of immediate * field_signature
+  | `Static_field_ref of Symbol.t
+] 
 
- and label = Temp.label 
+and label = Temp.label 
  (* TODO : change label to a variant type 
   * Label of Temp.label | Line_num of int *)
 
@@ -37,14 +37,14 @@ and target = [
   | `Line_num of int
 ]
 
- and rvalue = [
-   | `Temp of Temp.t
-   | `Const of const
-   | `Expr of expr
-   | `Array_ref of immediate * immediate
-   | `Instance_field_ref of immediate * field_signature
-   | `Static_field_ref of Symbol.t
- ]
+and rvalue = [
+  | `Temp of Temp.t
+  | `Const of const
+  | `Expr of expr
+  | `Array_ref of immediate * immediate
+  | `Instance_field_ref of immediate * field_signature
+  | `Static_field_ref of Symbol.t
+]
 
 and method_signature = Symbol.t * ty list * ty
 
@@ -58,7 +58,7 @@ and stmt = [
    | `Static_invoke of method_signature * immediate list
    | `Ret of immediate 
    | `Ret_void
-   | `Nop
+   | `Nop (* For optimization purpose *)
  ]
 
 and identity = [
@@ -104,7 +104,8 @@ and func =
 (* TODO : add glb_vars info and cls info! *)
 and prog = func list
 
-
+(** Moved to Transform module
+ *
 let simplify_func_body : stmt list -> stmt list = fun stmt_list ->
   let label_to_point : S.t UF.point S.table = 
     List.fold_left 
@@ -157,6 +158,9 @@ let simplify_func : func -> func = fun func ->
     with func_body = func.func_body
                     |> simplify_func_body
                     |> simple_jump_peephole }
+
+
+*)
 
 (* Printing Utility *)
 

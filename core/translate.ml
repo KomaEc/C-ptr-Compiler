@@ -2,6 +2,7 @@
 (* open Mimple *)
 open Types
 module M = Mimple
+module T = Transform
 
 (* TODO : add global var reference, when doing semantics check, 
  * the occurence of glb vars are recorded here 
@@ -99,7 +100,7 @@ let end_function () =
   prog_frag := func :: !prog_frag
 
 let get_mimple () = 
-  List.rev !prog_frag |> List.map M.simplify_func
+  List.rev !prog_frag |> List.map T.simplify_func
 
 (*
 let code_frag : prog ref = ref [] 
