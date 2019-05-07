@@ -25,10 +25,7 @@ module type AbstractDomain = sig
 
 end
 
-(* Change this parametric type 
- * to a type element of a module 
- * that parametrarized by an 
- * AbstractDomain module *)
+
 type 'a dfa = {
   instrs : M.stmt array;
   dir : dir_type; (* direction *)
@@ -370,18 +367,6 @@ module AvailableExpression = struct
 end
 
 module Ae = AvailableExpression
-
-module ConstantPropagation = struct
-
-  type value = 
-    | Top 
-    | Const of int 
-    | Bottom 
-
-  
-end
-
-module Cp = ConstantPropagation
 
 
 let live_vars (func : M.func) : T.t Bs.t dfa = 
