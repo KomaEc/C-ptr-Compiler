@@ -3,6 +3,7 @@ module M = Mimple
 module S = Symbol
 module T = Temp
 module Ty = Types
+module P = Cm_util.Printing
 
 type dir_type = 
   | D_Forward 
@@ -33,6 +34,7 @@ type 'a dfa = {
   instrs : M.stmt array;
   dir : dir_type; (* direction *)
   meet : 'a -> 'a -> 'a;
+  equal : 'a -> 'a -> bool;
   transfer : int -> 'a -> 'a; (* Transfer function at position i *)
   entry_or_exit_facts : 'a; (* facts assumed at program entry (fwd analysis) or exit (bkwd analysis) *)
   bottom : 'a; (* initial sets of facts at all other program points *)
@@ -125,15 +127,17 @@ let do_dfa (dfa : 'a dfa) (pred : int list array) (succ : int list array)
           | _ -> ()) dfa.instrs
     in
 
-  let meet : 'a -> 'a -> 'a = dfa.meet in
+  let ( <+> ) : 'a -> 'a -> 'a = dfa.meet in
+
+  let ( <=> ) : 'a -> 'a -> bool = dfa.equal in
     
   let run_worklist () = 
     while not (Queue.is_empty worklist) do
       let i = Queue.pop worklist in 
       let this_input = List.fold_left
-      (fun acc j -> meet res.(j) acc) default_val pred.(i) in 
+      (fun acc j -> res.(j) <+> acc) default_val pred.(i) in 
       let new_output = dfa.transfer i this_input in
-      match Bs.equal new_output res.(i) with 
+      match new_output <=> res.(i) with 
         | true -> () 
         | false -> 
           res.(i) <- new_output;
@@ -250,6 +254,34 @@ module LiveVariable = struct
         ^ string_of_stmt stmt ^ "\n") "" func_body res)
       ^ "EndFunc\n"*)
 
+  let live_vars (func : M.func) : T.t Bs.t dfa = 
+    let locals : T.t list = 
+      List.fold_left 
+      (fun acc (`Temp_decl(`Temp(t), _)) ->
+      t :: acc) [] func.local_decls
+      |> fun base ->
+      List.fold_left 
+      (fun acc (`Identity(`Temp(t), _)) -> 
+      t :: acc) base func.identities in
+    let bvs = Bs.mkempty locals in 
+    let instrs = 
+      func.func_body |> Array.of_list in
+    let transfer_array : (T.t Bs.t -> T.t Bs.t) array = 
+      Array.fold_left
+      (fun acc stmt -> (transfer stmt) :: acc) [] instrs
+      |> List.rev
+      |> Array.of_list in
+    let transfer = fun i -> transfer_array.(i) in
+    {
+      instrs = instrs;
+      dir = D_Backward;
+      meet = Bs.union;
+      equal = Bs.equal;
+      transfer = transfer;
+      entry_or_exit_facts = bvs;
+      bottom = bvs;
+    } 
+
 
 end
 
@@ -355,6 +387,23 @@ module ReachingDefinition = struct
 
 
 
+  let reach_defs (func : M.func) : int Bs.t dfa = 
+    let instrs = Array.of_list func.func_body in 
+    let (pos, _, _) as x = get_defs_positions instrs in
+    let trans_array = get_trans_array instrs x in
+    let bvs = Bs.mkempty pos in 
+    {
+      instrs; 
+      dir = D_Forward;
+      meet = Bs.union;
+      equal = Bs.equal;
+      transfer = (fun i -> trans_array.(i));
+      entry_or_exit_facts = bvs;
+      bottom = bvs;
+    }
+
+
+
 end
 
 module Rd = ReachingDefinition
@@ -375,58 +424,201 @@ module ConstantPropagation = struct
 
   type value = 
     | Top 
-    | Const of int 
-    | Bottom 
+    | Const of M.const
+    | Bottom
 
-  
+
+  module Map = FiniteMap
+
+  type t = (T.t, value) Map.t 
+
+  let meet_val : value -> value -> value = 
+    fun v1 v2 -> 
+      match v1, v2 with 
+        | Top, _ | _, Top -> Top  
+        | Bottom, v | v, Bottom -> v 
+        | Const c1, Const c2 when c1 = c2 -> Const c1 
+        | _ -> Top
+
+  let meet : t -> t -> t = Map.fold_meet meet_val 
+
+  type var = [
+    | `Ok of T.t 
+    | `No
+  ]
+
+  type rvalue = [
+    | `Const of M.const 
+    | `Temp of T.t 
+    | `Bin of M.immediate * M.binop * M.immediate 
+    | `Rel of M.immediate * M.relop * M.immediate
+    | `No
+  ] 
+
+  let get_var : M.var -> var = 
+    function 
+      | `Temp(t) -> `Ok t 
+      | _ -> `No 
+
+  let get_rvalue : M.rvalue -> rvalue =
+    function 
+      | `Const(c) -> `Const(c) 
+      | `Temp(v) -> `Temp(v)
+      | `Expr(`Bin(x, y, z)) -> `Bin(x, y, z) 
+      | `Expr(`Rel(x, y, z)) -> `Rel(x, y, z)
+      | _ -> `No
+
+  let get_val : t -> M.immediate -> value = 
+    fun map -> 
+      function 
+        | `Const(c) -> Const(c) 
+        | `Temp(t) -> Map.find map t
+
+  let extract_const_int : M.const -> int = 
+    function 
+      | `Int_const(i) -> i 
+      | _ -> assert false 
+
+  let extract_const_bool : M.const -> bool = 
+    function 
+      | `Bool_const(b) -> b 
+      | _ -> assert false
+
+  let interprete_bin : M.const -> M.const -> M.binop -> M.const = 
+    fun a b -> 
+    let map f (a, b) = (f a, f b) in
+    let (a, b) = map extract_const_int (a, b) in 
+    function 
+      | `Plus -> `Int_const(a + b) 
+      | `Minus -> `Int_const(a - b) 
+      | `Div -> `Int_const(a / b) 
+      | `Times -> `Int_const(a * b) 
+    
+  let interprete_rel : M.const -> M.const -> M.relop -> M.const = 
+    fun a b -> 
+    let map f (a, b) = (f a, f b) in 
+    function 
+      | `Lt -> 
+        let (a, b) = map extract_const_int (a, b) in 
+        `Bool_const(a < b) 
+      | `Gt -> 
+        let (a, b) = map extract_const_int (a, b) in 
+        `Bool_const(a > b) 
+      | `And -> 
+        let (a, b) = map extract_const_bool (a, b) in 
+        `Bool_const(a && b) 
+      | `Or -> 
+        let (a, b) = map extract_const_bool (a, b) in  
+        `Bool_const(a || b) 
+      | `Not -> 
+        let b = extract_const_bool b in 
+        `Bool_const(not b) 
+      | _ -> failwith "Constant Propagation, `Eq not implemented"
+
+
+  let transfer : M.stmt -> t -> t = 
+    let id = fun x -> x in
+    function 
+      | `Assign(var, rvalue) -> 
+        begin 
+          match get_var var with 
+            | `No -> id 
+            | `Ok(t) -> 
+              match get_rvalue rvalue with 
+                | `Const(c) -> fun map -> Map.replace t (Const(c)) map
+                | `Temp(t) -> fun map -> 
+                  Map.replace t (Map.find map t) map
+                | `Bin(i1, bop, i2) -> fun map ->
+                  begin 
+                    match get_val map i1, get_val map i2 with 
+                      | Const(c), Const(c') -> 
+                        Map.replace t (Const(interprete_bin c c' bop)) map 
+                      | Top, _ -> 
+                        Map.replace t Top map 
+                      | _, Top -> 
+                        Map.replace t Top map 
+                      | _ -> Map.replace t Bottom map 
+                  end
+                | `Rel(i1, rop, i2) -> fun map -> 
+                  begin 
+                    match get_val map i1, get_val map i2 with 
+                      | Const(c), Const(c') -> 
+                        Map.replace t (Const(interprete_rel c c' rop)) map 
+                      | Top, _ -> 
+                        Map.replace t Top map 
+                      | _, Top -> 
+                        Map.replace t Top map 
+                      | _ -> Map.replace t Bottom map 
+                  end
+                | `No -> id
+        end 
+      | _ -> id
+
+  let constant_propagation (func : M.func) : (T.t, value) Map.t dfa = 
+    let locals : T.t list = 
+      List.fold_left 
+      (fun acc (`Temp_decl(`Temp(t), _)) -> 
+      t :: acc) [] func.local_decls in 
+    let map_alist = 
+      List.fold_left
+      (fun acc _ -> Bottom :: acc) [] locals 
+      |> List.combine locals in
+    let bottom = Map.mkempty map_alist in 
+    let instrs = 
+      func.func_body |> Array.of_list in 
+    let transfer_array : (t -> t) array = 
+      Array.fold_left
+      (fun acc stmt -> (transfer stmt) :: acc) [] instrs 
+      |> List.rev
+      |> Array.of_list in 
+    let transfer = fun i -> transfer_array.(i) in 
+    { 
+      instrs;
+      dir = D_Forward;
+      meet;
+      equal = Map.equal;
+      transfer;
+      entry_or_exit_facts = bottom;
+      bottom;
+    }
+
+
+  let string_of_result : t -> string = fun tbl ->
+    let alist = Map.to_alist tbl in 
+    P.string_of_list 
+    (fun (t, v) -> 
+    match v with 
+      | Const c -> T.string_of_temp t ^ " : " ^ M.string_of_const c 
+      | _ -> T.string_of_temp t ^ " : NAC") alist
+
+  let string_of_stmt_and_res 
+    = fun stmt res -> 
+    M.string_of_stmt stmt ^ "\n" 
+    ^ "cp : " ^ string_of_result res ^ "\n "
+
+
+  let string_of_func_with_result 
+  : M.func -> t result -> (M.stmt -> t -> string) -> string = 
+  let open Ty in 
+  let open M in 
+  fun { func_name; func_args; func_ret; identities; local_decls; func_body } 
+      res string_of_stmt_and_res ->
+    let res = Array.to_list res in
+    "\nBeginFunc " ^ Symbol.name func_name 
+    ^ " : " ^ string_of_ty_list func_args ^ " -> " 
+    ^ string_of_ty func_ret ^ "\n"
+    ^ (List.fold_left (fun acc decl -> acc ^ string_of_decl decl ^ "\n") "" local_decls)
+    ^ (List.fold_left (fun acc idt -> acc ^ string_of_identity idt ^ "\n") "" identities)
+    ^ (List.fold_left2 
+      (fun acc stmt res -> acc 
+      ^ string_of_stmt_and_res stmt res) "" func_body res)
+    ^ "EndFunc\n"  
+    
+    
 end
 
 module Cp = ConstantPropagation
 
-
-let live_vars (func : M.func) : T.t Bs.t dfa = 
-  let open Lv in 
-  let locals : T.t list = 
-    List.fold_left 
-    (fun acc (`Temp_decl(`Temp(t), _)) ->
-    t :: acc) [] func.local_decls
-    |> fun base ->
-    List.fold_left 
-    (fun acc (`Identity(`Temp(t), _)) -> 
-    t :: acc) base func.identities in
-  let bvs = Bs.mkempty locals in 
-  let instrs = 
-    func.func_body |> Array.of_list in
-  let transfer_array : (T.t Bs.t -> T.t Bs.t) array = 
-    Array.fold_left
-    (fun acc stmt -> (transfer stmt) :: acc) [] instrs
-    |> List.rev
-    |> Array.of_list in
-  let transfer = fun i -> transfer_array.(i) in
-  {
-    instrs = instrs;
-    dir = D_Backward;
-    meet = Bs.union;
-    transfer = transfer;
-    entry_or_exit_facts = bvs;
-    bottom = bvs;
-  } 
-
-
-let reach_defs (func : M.func) : int Bs.t dfa = 
-  let open Rd in 
-  let instrs = Array.of_list func.func_body in 
-  let (pos, _, _) as x = get_defs_positions instrs in
-  let trans_array = get_trans_array instrs x in
-  let bvs = Bs.mkempty pos in 
-  {
-    instrs; 
-    dir = D_Forward;
-    meet = Bs.union;
-    transfer = (fun i -> trans_array.(i));
-    entry_or_exit_facts = bvs;
-    bottom = bvs;
-  }
 
 
 
@@ -450,20 +642,28 @@ let print_stmt_array : M.stmt array -> int list array -> int list array -> unit 
   ^ "\t\t\t" ^ M.string_of_stmt stmt ^ "\n"))
   stmt_array
 
+
+
+
 let analysis_func : M.func -> string = 
   fun func -> 
   let pred, succ = calculate_pred_succ (Array.of_list func.func_body) in
   let res_lv = 
     (func
-    |> live_vars 
+    |> Lv.live_vars 
     |> do_dfa) pred succ
   and res_rd = 
     (func 
-    |> reach_defs 
-    |> do_dfa) pred succ in
-  Lv.string_of_func_with_result func res_lv Lv.string_of_stmt_and_res
-  ^ Rd.string_of_func_with_result func res_rd Rd.string_of_stmt_and_res
-
+    |> Rd.reach_defs 
+    |> do_dfa) pred succ  
+  and res_cp = 
+    (func 
+    |> Cp.constant_propagation 
+    |> do_dfa) pred succ
+  in
+  Lv.(string_of_func_with_result func res_lv string_of_stmt_and_res)
+  ^ Rd.(string_of_func_with_result func res_rd string_of_stmt_and_res)
+  ^ Cp.(string_of_func_with_result func res_cp string_of_stmt_and_res)
 
 let analysis_prog : M.prog -> unit = 
   fun prog -> 

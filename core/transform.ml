@@ -103,7 +103,7 @@ let simplify : M.func -> M.func = fun func ->
   let flag = ref true in 
   while !flag do 
     let () = flag := false in
-    let lv_dfa = Dfa.live_vars func in 
+    let lv_dfa = Dfa.Lv.live_vars func in 
     let lv_res = Dfa.do_dfa lv_dfa pred succ in 
     begin 
       flag := constant_propagation instrs;
