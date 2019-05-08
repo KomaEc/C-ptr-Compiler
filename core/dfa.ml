@@ -576,7 +576,8 @@ module ConstantPropagation = struct
     (fun (t, v) -> 
     match v with 
       | Const c -> T.string_of_temp t ^ " : " ^ M.string_of_const c 
-      | _ -> T.string_of_temp t ^ " : NAC") alist
+      | Top -> T.string_of_temp t ^ " : NAC"
+      | Bottom -> T.string_of_temp t ^ " : UNDEF") alist
 
   let string_of_stmt_and_res 
     = fun stmt res -> 
@@ -606,6 +607,130 @@ end
 
 module Cp = ConstantPropagation
 
+
+module CopyPropagation = struct 
+
+  type value = [
+    | `Copy of T.t 
+    | `Top 
+    | `Bottom
+  ]
+
+  module Map = FiniteMap
+
+  type t = (T.t, value) Map.t 
+
+  let meet_val : value -> value -> value = 
+    fun v1 v2 -> 
+      match v1, v2 with 
+        | `Copy t1, `Copy t2 when t1 = t2 -> `Copy t1 
+        | `Top, _ | _, `Top -> `Top 
+        | `Bottom, v | v, `Bottom -> v 
+        | _ -> `Top
+
+  let meet : t -> t -> t = Map.fold_meet meet_val 
+
+  type var = [
+    | `Ok of T.t 
+    | `No
+  ]
+
+  type rvalue = [
+    | `Temp of T.t 
+    | `No
+  ] 
+
+  let get_var : M.var -> var = 
+    function 
+      | `Temp(t) -> `Ok t 
+      | _ -> `No 
+
+  let get_rvalue : M.rvalue -> rvalue =
+    function 
+      | `Temp(v) -> `Temp(v)
+      | _ -> `No
+
+
+  let transfer : M.stmt -> t -> t = 
+    let id = fun x -> x in 
+    function 
+      | `Assign(`Temp(t), `Temp(t')) -> fun map -> 
+        begin 
+          match Map.find map t' with 
+            | `Copy(t'') -> Map.replace t (`Copy(t'')) map 
+            | _ -> Map.replace t (`Copy(t')) map 
+        end 
+      | _ -> id
+  
+  let copy_propagation (func : M.func) : (T.t, value) Map.t dfa = 
+    let locals : T.t list = 
+      List.fold_left 
+      (fun acc (`Temp_decl(`Temp(t), _)) ->
+      t :: acc) [] func.local_decls
+      |> fun base ->
+      List.fold_left 
+      (fun acc (`Identity(`Temp(t), _)) -> 
+      t :: acc) base func.identities in
+    let map_alist = 
+      List.fold_left
+      (fun acc _ -> `Bottom :: acc) [] locals 
+      |> List.combine locals in
+    let bottom = Map.mkempty map_alist in 
+    let instrs = 
+      func.func_body |> Array.of_list in 
+    let transfer_array : (t -> t) array = 
+      Array.fold_left
+      (fun acc stmt -> (transfer stmt) :: acc) [] instrs 
+      |> List.rev
+      |> Array.of_list in 
+    let transfer = fun i -> transfer_array.(i) in 
+    { 
+      instrs;
+      dir = D_Forward;
+      meet;
+      equal = Map.equal;
+      transfer;
+      entry_or_exit_facts = bottom;
+      bottom;
+    }
+
+
+  let string_of_result : t -> string = fun tbl ->
+    let alist = Map.to_alist tbl in 
+    P.string_of_list 
+    (fun (t, v) -> 
+    match v with 
+      | `Copy t -> T.string_of_temp t ^ " : " ^ T.string_of_temp t 
+      | `Bottom -> T.string_of_temp t ^ " : UNDEF"
+      | `Top -> T.string_of_temp t ^ " : NC") alist
+
+  let string_of_stmt_and_res 
+    = fun stmt res -> 
+    M.string_of_stmt stmt ^ "\n" 
+    ^ "cp : " ^ string_of_result res ^ "\n "
+
+
+  let string_of_func_with_result 
+  : M.func -> t result -> (M.stmt -> t -> string) -> string = 
+  let open Ty in 
+  let open M in 
+  fun { func_name; func_args; func_ret; identities; local_decls; func_body } 
+      res string_of_stmt_and_res ->
+    let res = Array.to_list res in
+    "\nBeginFunc " ^ Symbol.name func_name 
+    ^ " : " ^ string_of_ty_list func_args ^ " -> " 
+    ^ string_of_ty func_ret ^ "\n"
+    ^ (List.fold_left (fun acc decl -> acc ^ string_of_decl decl ^ "\n") "" local_decls)
+    ^ (List.fold_left (fun acc idt -> acc ^ string_of_identity idt ^ "\n") "" identities)
+    ^ (List.fold_left2 
+      (fun acc stmt res -> acc 
+      ^ string_of_stmt_and_res stmt res) "" func_body res)
+    ^ "EndFunc\n"  
+    
+
+end 
+
+module Cop = CopyPropagation
 
 
 
@@ -647,10 +772,15 @@ let analysis_func : M.func -> string =
     (func 
     |> Cp.constant_propagation 
     |> do_dfa) pred succ
+  and res_cop = 
+    (func 
+    |> Cop.copy_propagation 
+    |> do_dfa) pred succ
   in
   Lv.(string_of_func_with_result func res_lv string_of_stmt_and_res)
   ^ Rd.(string_of_func_with_result func res_rd string_of_stmt_and_res)
   ^ Cp.(string_of_func_with_result func res_cp string_of_stmt_and_res)
+  ^ Cop.(string_of_func_with_result func res_cop string_of_stmt_and_res)
 
 let analysis_prog : M.prog -> unit = 
   fun prog -> 
