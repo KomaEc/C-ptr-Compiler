@@ -236,23 +236,6 @@ module LiveVariable = struct
       (fun acc stmt res -> acc 
       ^ string_of_stmt_and_res stmt res) "" func_body res)
     ^ "EndFunc\n"  
-(*
-  let string_of_func_with_result : M.func -> T.t result -> string = 
-    let open Ty in 
-    let open M in 
-    fun { func_name; func_args; func_ret; identities; local_decls; func_body } 
-        res ->
-      let res = Array.to_list res in
-      "\nBeginFunc " ^ Symbol.name func_name 
-      ^ " : " ^ string_of_ty_list func_args ^ " -> " 
-      ^ string_of_ty func_ret ^ "\n"
-      ^ (List.fold_left (fun acc decl -> acc ^ string_of_decl decl ^ "\n") "" local_decls)
-      ^ (List.fold_left (fun acc idt -> acc ^ string_of_identity idt ^ "\n") "" identities)
-      ^ (List.fold_left2 
-        (fun acc stmt res -> acc 
-        ^ "lv : " ^ string_of_result res ^ "\n  "
-        ^ string_of_stmt stmt ^ "\n") "" func_body res)
-      ^ "EndFunc\n"*)
 
   let live_vars (func : M.func) : T.t Bs.t dfa = 
     let locals : T.t list = 
@@ -557,8 +540,12 @@ module ConstantPropagation = struct
   let constant_propagation (func : M.func) : (T.t, value) Map.t dfa = 
     let locals : T.t list = 
       List.fold_left 
-      (fun acc (`Temp_decl(`Temp(t), _)) -> 
-      t :: acc) [] func.local_decls in 
+      (fun acc (`Temp_decl(`Temp(t), _)) ->
+      t :: acc) [] func.local_decls
+      |> fun base ->
+      List.fold_left 
+      (fun acc (`Identity(`Temp(t), _)) -> 
+      t :: acc) base func.identities in
     let map_alist = 
       List.fold_left
       (fun acc _ -> Bottom :: acc) [] locals 
