@@ -526,8 +526,8 @@ module ConstantPropagation = struct
             | `Ok(t) -> 
               match get_rvalue rvalue with 
                 | `Const(c) -> fun map -> Map.replace t (Const(c)) map
-                | `Temp(t) -> fun map -> 
-                  Map.replace t (Map.find map t) map
+                | `Temp(t') -> fun map -> 
+                  Map.replace t (Map.find map t') map
                 | `Bin(i1, bop, i2) -> fun map ->
                   begin 
                     match get_val map i1, get_val map i2 with 
