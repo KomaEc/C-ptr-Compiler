@@ -11,6 +11,7 @@ open Cm_core.Printer
 open Cm_core.Semant
 open Cm_core.Support.Error
 module Dfa = Cm_core.Dfa
+module T = Cm_core.Translate
 
 let print_position outx lexbuf = 
   let pos = lexbuf.lex_curr_p in 
@@ -77,6 +78,9 @@ let () =
           print_newline ();
           print_string "Analysis Result : \n\n";
           Dfa.analysis_prog prog;
+          print_string "Optimizting... \n\n";
+          let prog2 = T.get_mimple2() in 
+          Mimple.print_prog prog2;
           close_in inx
           )
   | _ -> fprintf stderr "Too many arguments! Expected 1\n"; exit(0)

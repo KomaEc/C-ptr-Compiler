@@ -115,6 +115,104 @@ let simplify : M.func -> M.func = fun func ->
     func_body = Array.to_list instrs}
 
 
+
+let transform_stmt_cp (to_var : Temp.t -> immediate) : stmt -> stmt * bool = 
+  let flag = ref false in
+
+  let rec transform_stmt : stmt -> stmt = 
+    function 
+      | `Assign(var, rvalue) -> 
+        begin 
+          match var with 
+            | `Temp(t) -> 
+              begin 
+                match to_var t with 
+                  | `Const(c) -> flag := true; `Assign(var, `Const(c))
+                  | _ -> `Assign(transform_var var, transform_rvalue rvalue)
+              end 
+            | _ as var -> `Assign(transform_var var, transform_rvalue rvalue)
+        end
+      | `Static_invoke(msig, il) -> 
+        `Static_invoke(msig, List.map transform_immediate il) 
+      | `Ret(i) -> `Ret(transform_immediate i)
+      | _ as s -> s 
+  and transform_var = 
+    function 
+      | `Array_ref(i, i') -> `Array_ref(i, transform_immediate i') 
+      | _ as var -> var
+  and transform_rvalue  = 
+    function 
+      | `Temp(t) -> (transform_immediate (`Temp(t)) :> rvalue)
+      | `Expr(expr) -> `Expr(transform_expr expr) 
+      | `Array_ref(i, i') -> `Array_ref(i, transform_immediate i')
+      | _ as v -> v 
+  and transform_expr = 
+    function 
+      | `Bin(i1, op, i2) -> 
+        `Bin(transform_immediate i1, op, transform_immediate i2) 
+      | `Rel(i1, op, i2) -> 
+        `Rel(transform_immediate i1, op, transform_immediate i2) 
+      | `Static_invoke(msig, il) -> 
+        `Static_invoke(msig, List.map transform_immediate il) 
+      | `New_array_expr(ty, i) -> `New_array_expr(ty, transform_immediate i) 
+      | _ as e -> e 
+  and transform_immediate = 
+    function 
+      | `Temp(t) -> 
+        begin
+          match to_var t with 
+            | `Const(_) as c -> flag := true; c 
+            | _ as t -> t 
+        end
+      | _ as c -> c in 
+
+    fun stmt -> transform_stmt stmt, !flag
+
+let transform_stmt_cop (to_var : Temp.t -> immediate) : stmt -> stmt * bool = 
+  let flag = ref false in
+
+  let rec transform_stmt : stmt -> stmt = 
+    function 
+      | `Assign(var, rvalue) -> 
+        `Assign(transform_var var, transform_rvalue rvalue)
+      | `Static_invoke(msig, il) -> 
+        `Static_invoke(msig, List.map transform_immediate il) 
+      | `Ret(i) -> `Ret(transform_immediate i)
+      | _ as s -> s 
+  and transform_var = 
+    function 
+      | `Array_ref(i, i') -> `Array_ref(transform_immediate i, transform_immediate i') 
+      | `Instance_field_ref(i, fsig) -> `Instance_field_ref(transform_immediate i, fsig)
+      | _ as var -> var
+  and transform_rvalue  = 
+    function 
+      | `Temp(t) -> (transform_immediate (`Temp(t)) :> rvalue)
+      | `Expr(expr) -> `Expr(transform_expr expr) 
+      | `Array_ref(i, i') -> `Array_ref(transform_immediate i, transform_immediate i')
+      | _ as v -> v 
+  and transform_expr = 
+    function 
+      | `Bin(i1, op, i2) -> 
+        `Bin(transform_immediate i1, op, transform_immediate i2) 
+      | `Rel(i1, op, i2) -> 
+        `Rel(transform_immediate i1, op, transform_immediate i2) 
+      | `Static_invoke(msig, il) -> 
+        `Static_invoke(msig, List.map transform_immediate il) 
+      | `New_array_expr(ty, i) -> `New_array_expr(ty, transform_immediate i) 
+      | _ as e -> e 
+  and transform_immediate = 
+    function 
+      | `Temp(t) -> 
+        begin
+          match to_var t with 
+            | `Temp(t') when not (t = t') -> flag := true; `Temp(t') 
+            | _ -> `Temp(t)
+        end
+      | _ as c -> c in 
+
+    fun stmt -> transform_stmt stmt, !flag
+
+
 let constant_propagation : M.func -> M.func * bool = fun func -> 
   let cp_dfa = Dfa.Cp.constant_propagation func in
   let pred, succ = Dfa.calculate_pred_succ cp_dfa.instrs in
@@ -128,6 +226,29 @@ let constant_propagation : M.func -> M.func * bool = fun func ->
   let flag = ref false in
   Array.iteri 
   (fun i stmt -> 
-  match M.transform_stmt (to_var i) stmt with 
+  match transform_stmt_cp (to_var i) stmt with 
     (stmt, b) -> flag := !flag || b; res_func := stmt :: !res_func) cp_dfa.instrs;
   {func with func_body = List.rev !res_func}, !flag
+
+let copy_propagation : M.func -> M.func * bool = fun func -> 
+  let cop_dfa = Dfa.Cop.copy_propagation func in 
+  let pred, succ = Dfa.calculate_pred_succ cop_dfa.instrs in 
+  let cop_res = Dfa.do_dfa cop_dfa pred succ in 
+  let to_var i = fun t -> 
+    match FiniteMap.find cop_res.(i) t with 
+      | `Copy(t') -> `Temp(t') 
+      | _ -> `Temp(t) in 
+  let res_func = ref [] in 
+  let flag = ref false in 
+  Array.iteri 
+  (fun i stmt -> 
+  match transform_stmt_cop (to_var i) stmt with 
+    (stmt, b) -> flag := !flag || b; res_func := stmt :: !res_func) cop_dfa.instrs;
+  {func with func_body = List.rev ! res_func}, !flag
+
+
+let simplify_func2 : M.func -> M.func = 
+  fun func -> fst (constant_propagation func)
+
+let simplify_func3 : M.func -> M.func = 
+  fun func -> fst (copy_propagation func)

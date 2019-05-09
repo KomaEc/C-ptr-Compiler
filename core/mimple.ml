@@ -116,7 +116,7 @@ let rec transform_stmt : stmt -> stmt =
           | `Temp(t) -> 
             begin 
               match to_var t with 
-                | `Const(c) -> `Assign(var, `Const(c))
+                | `Const(c) -> flag := true; `Assign(var, `Const(c))
                 | _ -> `Assign(transform_var var, transform_rvalue rvalue)
             end 
           | _ as var -> `Assign(transform_var var, transform_rvalue rvalue)
@@ -147,7 +147,12 @@ and transform_expr =
     | _ as e -> e 
 and transform_immediate = 
   function 
-    | `Temp(t) -> to_var t 
+    | `Temp(t) -> 
+      begin
+        match to_var t with 
+          | `Const(_) as c -> flag := true; c 
+          | _ as t -> t 
+      end
     | _ as c -> c in 
 
     fun stmt -> transform_stmt stmt, !flag
