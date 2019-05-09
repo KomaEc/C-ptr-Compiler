@@ -113,3 +113,21 @@ let simplify : M.func -> M.func = fun func ->
   done;
   {func with 
     func_body = Array.to_list instrs}
+
+
+let constant_propagation : M.func -> M.func * bool = fun func -> 
+  let cp_dfa = Dfa.Cp.constant_propagation func in
+  let pred, succ = Dfa.calculate_pred_succ cp_dfa.instrs in
+  let cp_res = Dfa.do_dfa cp_dfa pred succ in 
+  let to_var i = fun t -> 
+    match FiniteMap.find cp_res.(i) t with 
+      | Dfa.Cp.Const(c) -> 
+        `Const(c) 
+      | _ -> `Temp(t) in
+  let res_func = ref [] in 
+  let flag = ref false in
+  Array.iteri 
+  (fun i stmt -> 
+  match M.transform_stmt (to_var i) stmt with 
+    (stmt, b) -> flag := !flag || b; res_func := stmt :: !res_func) cp_dfa.instrs;
+  {func with func_body = List.rev !res_func}, !flag

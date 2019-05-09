@@ -104,63 +104,53 @@ and func =
 (* TODO : add glb_vars info and cls info! *)
 and prog = func list
 
-(** Moved to Transform module
- *
-let simplify_func_body : stmt list -> stmt list = fun stmt_list ->
-  let label_to_point : S.t UF.point S.table = 
-    List.fold_left 
-    (fun prev stmt ->
-    match stmt with 
-      | `Label(l) -> S.enter l (UF.fresh l) prev
-      | _ -> prev) S.empty stmt_list in
-  let rec dedup : stmt list -> stmt list = 
-    function 
-      | [] -> []
-      | [s] -> [s]
-      | s :: (s' :: _ as sl) ->
-        begin 
-          match s, s' with 
-          (* [!!!] Problematic, since this label can be function 
-           * Consider reveal the label type in Temp ??? *)
-          (* [!!!] Problematic!!!! Can [`Label l] and 
-           * [`Goto l'] really be pruned?????? 
-           * I think so. But what if there's a jump
-           * -to-nowhere "goto" ?? Cyclic? *)
-            | `Label l, `Label l' | `Label l, `Goto (`Label l') ->
-              UF.union (S.lookup l label_to_point) 
-              (S.lookup l' label_to_point);
-              dedup sl
-            | _ -> s :: dedup sl
-        end in
-  let get_repr : label -> label = fun l ->
-    let point = S.lookup l label_to_point in 
-    UF.find point in
-  let substitute : stmt -> stmt = 
-    function 
-      | `If(cond, `Label(l)) -> `If(cond, `Label (get_repr l))
-      | `Goto(`Label(l)) -> `Goto(`Label(get_repr l))
-      | `Label(l) -> `Label(get_repr l)
-      | _ as s -> s in
-  List.map substitute (dedup stmt_list)
 
-let rec simple_jump_peephole : stmt list -> stmt list =
-    function 
-    | [] -> [] 
-    | [s] -> [s] 
-    | s :: (s' :: sl' as sl) -> 
-      match s, s' with 
-        | `Goto(`Label(l)), `Label(l') when l = l' -> simple_jump_peephole sl' 
-        | _ -> s :: simple_jump_peephole sl
+let transform_stmt (to_var : Temp.t -> immediate) : stmt -> stmt * bool = 
+  let flag = ref false in
 
+let rec transform_stmt : stmt -> stmt = 
+  function 
+    | `Assign(var, rvalue) -> 
+      begin 
+        match var with 
+          | `Temp(t) -> 
+            begin 
+              match to_var t with 
+                | `Const(c) -> `Assign(var, `Const(c))
+                | _ -> `Assign(transform_var var, transform_rvalue rvalue)
+            end 
+          | _ as var -> `Assign(transform_var var, transform_rvalue rvalue)
+      end
+    | `Static_invoke(msig, il) -> 
+      `Static_invoke(msig, List.map transform_immediate il) 
+    | `Ret(i) -> `Ret(transform_immediate i)
+    | _ as s -> s 
+and transform_var = 
+  function 
+    | `Array_ref(i, i') -> `Array_ref(i, transform_immediate i') 
+    | _ as var -> var
+and transform_rvalue  = 
+  function 
+    | `Temp(t) -> (to_var t :> rvalue) 
+    | `Expr(expr) -> `Expr(transform_expr expr) 
+    | `Array_ref(i, i') -> `Array_ref(i, transform_immediate i')
+    | _ as v -> v 
+and transform_expr = 
+  function 
+    | `Bin(i1, op, i2) -> 
+      `Bin(transform_immediate i1, op, transform_immediate i2) 
+    | `Rel(i1, op, i2) -> 
+      `Rel(transform_immediate i1, op, transform_immediate i2) 
+    | `Static_invoke(msig, il) -> 
+      `Static_invoke(msig, List.map transform_immediate il) 
+    | `New_array_expr(ty, i) -> `New_array_expr(ty, transform_immediate i) 
+    | _ as e -> e 
+and transform_immediate = 
+  function 
+    | `Temp(t) -> to_var t 
+    | _ as c -> c in 
 
-let simplify_func : func -> func = fun func -> 
-  { func 
-    with func_body = func.func_body
-                    |> simplify_func_body
-                    |> simple_jump_peephole }
-
-
-*)
+    fun stmt -> transform_stmt stmt, !flag
 
 (* Printing Utility *)
 
