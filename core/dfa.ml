@@ -87,14 +87,20 @@ type 'a t = 'a dfa
 type 'a result = 'a array
 
 
+(* Modify this functino 
+ * in most of the optimization case. 
+ * what's useful is the dfa values at 
+ * the entry of the program point *)
 let do_dfa (dfa : 'a dfa) (pred : int list array) (succ : int list array)
-  : 'a result = 
+  : 'a result * 'a result = 
 
   let worklist : int Queue.t = Queue.create ()
 
   and length : int = Array.length dfa.instrs in
   
-  let res : 'a result = Array.make length dfa.bottom
+  let res : 'a result = Array.make length dfa.bottom in
+
+  let pre_res : 'a result = Array.copy res
 
   and default_val : 'a = dfa.bottom
 
@@ -134,8 +140,8 @@ let do_dfa (dfa : 'a dfa) (pred : int list array) (succ : int list array)
   let run_worklist () = 
     while not (Queue.is_empty worklist) do
       let i = Queue.pop worklist in 
-      let this_input = List.fold_left
-      (fun acc j -> res.(j) <+> acc) default_val pred.(i) in 
+      let this_input = List.fold_left 
+        (fun acc j -> acc <+> res.(j)) default_val pred.(i) in 
       let new_output = dfa.transfer i this_input in
       match new_output <=> res.(i) with 
         | true -> () 
@@ -144,15 +150,18 @@ let do_dfa (dfa : 'a dfa) (pred : int list array) (succ : int list array)
           List.iter (fun k -> Queue.add k worklist) succ.(i)
     done in
 
+  let get_pre_res () = 
+    Array.iteri 
+    (fun i _ -> 
+    pre_res.(i) <- List.fold_left 
+      (fun acc j -> acc <+> res.(j)) default_val pred.(i)) dfa.instrs in
+
   begin 
     init ();
     run_worklist ();
-    res
+    get_pre_res ();
+    res, pre_res
   end
-
-
-
-
 
 module LiveVariable = struct 
 
@@ -657,9 +666,11 @@ module CopyPropagation = struct
       | `Assign(`Temp(t), `Temp(t')) -> fun map -> 
         begin 
           match Map.find map t' with 
-            | `Copy(t'') -> Map.replace t (`Copy(t'')) map 
+            | `Copy(t'') when not (t' = t'') -> Map.replace t (`Copy(t'')) map 
             | _ -> Map.replace t (`Copy(t')) map 
         end 
+      | `Assign(`Temp(t), _) -> fun map -> 
+        Map.replace t `Top map
       | _ -> id
   
   let copy_propagation (func : M.func) : (T.t, value) Map.t dfa = 
@@ -700,7 +711,7 @@ module CopyPropagation = struct
     P.string_of_list 
     (fun (t, v) -> 
     match v with 
-      | `Copy t -> T.string_of_temp t ^ " : " ^ T.string_of_temp t 
+      | `Copy t' -> T.string_of_temp t ^ " : " ^ T.string_of_temp t'
       | `Bottom -> T.string_of_temp t ^ " : UNDEF"
       | `Top -> T.string_of_temp t ^ " : NC") alist
 
@@ -763,19 +774,19 @@ let analysis_func : M.func -> string =
   let res_lv = 
     (func
     |> Lv.live_vars 
-    |> do_dfa) pred succ
+    |> do_dfa) pred succ |> fst
   and res_rd = 
     (func 
     |> Rd.reach_defs 
-    |> do_dfa) pred succ  
+    |> do_dfa) pred succ |> fst
   and res_cp = 
     (func 
     |> Cp.constant_propagation 
-    |> do_dfa) pred succ
+    |> do_dfa) pred succ |> fst
   and res_cop = 
     (func 
     |> Cop.copy_propagation 
-    |> do_dfa) pred succ
+    |> do_dfa) pred succ |> fst
   in
   Lv.(string_of_func_with_result func res_lv string_of_stmt_and_res)
   ^ Rd.(string_of_func_with_result func res_rd string_of_stmt_and_res)

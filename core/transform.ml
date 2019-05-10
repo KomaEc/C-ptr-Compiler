@@ -73,7 +73,7 @@ let simplify_func : func -> func = fun func ->
 
 
 type instrs = M.stmt array 
-
+(*
 (* How to achieve this? dfa! 
  * copy propagation needs a slightly tweaked version of it*)
 let constant_propagation : instrs -> bool = 
@@ -81,7 +81,8 @@ let constant_propagation : instrs -> bool =
 
 let copy_propagation : instrs -> bool = 
   fun _ -> false
-
+  *)
+(*
 let simplify : M.func -> M.func = fun func -> 
   let instrs = 
     func.func_body
@@ -113,7 +114,7 @@ let simplify : M.func -> M.func = fun func ->
   done;
   {func with 
     func_body = Array.to_list instrs}
-
+*)
 
 
 let transform_stmt_cp (to_var : Temp.t -> immediate) : stmt -> stmt * bool = 
@@ -216,7 +217,7 @@ let transform_stmt_cop (to_var : Temp.t -> immediate) : stmt -> stmt * bool =
 let constant_propagation : M.func -> M.func * bool = fun func -> 
   let cp_dfa = Dfa.Cp.constant_propagation func in
   let pred, succ = Dfa.calculate_pred_succ cp_dfa.instrs in
-  let cp_res = Dfa.do_dfa cp_dfa pred succ in 
+  let cp_res = Dfa.do_dfa cp_dfa pred succ |> snd in 
   let to_var i = fun t -> 
     match FiniteMap.find cp_res.(i) t with 
       | Dfa.Cp.Const(c) -> 
@@ -233,7 +234,7 @@ let constant_propagation : M.func -> M.func * bool = fun func ->
 let copy_propagation : M.func -> M.func * bool = fun func -> 
   let cop_dfa = Dfa.Cop.copy_propagation func in 
   let pred, succ = Dfa.calculate_pred_succ cop_dfa.instrs in 
-  let cop_res = Dfa.do_dfa cop_dfa pred succ in 
+  let cop_res = Dfa.do_dfa cop_dfa pred succ |> snd in 
   let to_var i = fun t -> 
     match FiniteMap.find cop_res.(i) t with 
       | `Copy(t') -> `Temp(t') 
@@ -252,3 +253,39 @@ let simplify_func2 : M.func -> M.func =
 
 let simplify_func3 : M.func -> M.func = 
   fun func -> fst (copy_propagation func)
+
+
+let is_effectless : M.rvalue -> bool = function 
+  | `Temp(_) 
+  | `Const(_) 
+  | `Array_ref(_) 
+  | `Expr(`Bin(_)) 
+  | `Expr(`Rel(_)) -> true 
+  | _ -> false
+  
+
+let dead_code_elimination : M.func -> M.func * bool = fun func -> 
+  let lv_dfa = Dfa.Lv.live_vars func in 
+  let pred, succ = Dfa.calculate_pred_succ lv_dfa.instrs in 
+  let lv_res = Dfa.do_dfa lv_dfa pred succ |> snd in 
+  let instrs = 
+    func.func_body 
+    |> Array.of_list in 
+  let flag = ref false in
+  let () = Array.iteri 
+    (fun i -> function 
+    | `Assign(`Temp(t), rvalue) when not (Bvset.mem t lv_res.(i)) && is_effectless rvalue -> 
+      flag := true; instrs.(i) <- `Nop 
+    | _ -> ()) instrs in 
+  { func with 
+    func_body = Array.to_list instrs }, !flag
+
+
+
+
+let rec optimize : M.func -> M.func = fun func -> 
+  let (func, flag1) = constant_propagation func in 
+  let (func, flag2) = copy_propagation func in 
+  let (func, flag3) = dead_code_elimination func in 
+  if flag1 || flag2 || flag3 then optimize func 
+  else func

@@ -105,6 +105,9 @@ let get_mimple () =
 let get_mimple2 () = 
   List.rev !prog_frag |> List.map T.simplify_func2
 
+let get_mimple3 () = 
+  List.rev !prog_frag |> List.map T.simplify_func3
+
 (*
 let code_frag : prog ref = ref [] 
 

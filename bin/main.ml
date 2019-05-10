@@ -81,6 +81,9 @@ let () =
           print_string "Optimizting... \n\n";
           let prog2 = T.get_mimple2() in 
           Mimple.print_prog prog2;
+          print_newline();
+          let prog3 = T.get_mimple3() in 
+          Mimple.print_prog prog3;
           close_in inx
           )
   | _ -> fprintf stderr "Too many arguments! Expected 1\n"; exit(0)
