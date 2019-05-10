@@ -5,6 +5,8 @@ module UF = Cm_util.Union_and_find
 module S = Symbol
 module T = Temp 
 module Bs = Bvset
+module U = Cm_util.Util
+open U
 
 open M 
 
@@ -217,7 +219,7 @@ let transform_stmt_cop (to_var : Temp.t -> immediate) : stmt -> stmt * bool =
 let constant_propagation : M.func -> M.func * bool = fun func -> 
   let cp_dfa = Dfa.Cp.constant_propagation func in
   let pred, succ = Dfa.calculate_pred_succ cp_dfa.instrs in
-  let cp_res = Dfa.do_dfa cp_dfa pred succ |> snd in 
+  let cp_res = Dfa.do_dfa cp_dfa pred succ |> fst in 
   let to_var i = fun t -> 
     match FiniteMap.find cp_res.(i) t with 
       | Dfa.Cp.Const(c) -> 
@@ -274,18 +276,42 @@ let dead_code_elimination : M.func -> M.func * bool = fun func ->
   let flag = ref false in
   let () = Array.iteri 
     (fun i -> function 
-    | `Assign(`Temp(t), rvalue) when not (Bvset.mem t lv_res.(i)) && is_effectless rvalue -> 
+    | `Assign(`Temp(t), rvalue) 
+      when not (Bvset.mem t lv_res.(i)) && is_effectless rvalue -> 
       flag := true; instrs.(i) <- `Nop 
     | _ -> ()) instrs in 
   { func with 
     func_body = Array.to_list instrs }, !flag
 
+let compact : M.func -> M.func = fun func -> 
+  { func with 
+    func_body = List.fold_right 
+    (fun stmt acc -> 
+    match stmt with 
+      | `Nop -> acc 
+      | _ as s -> s :: acc) func.func_body []}
 
-
-
+(*
 let rec optimize : M.func -> M.func = fun func -> 
   let (func, flag1) = constant_propagation func in 
   let (func, flag2) = copy_propagation func in 
   let (func, flag3) = dead_code_elimination func in 
   if flag1 || flag2 || flag3 then optimize func 
-  else func
+  else compact func
+
+*)
+
+(*  ALERT : cp and cop have wrong semantics. 
+ * 'cause the transfer functions only gen don't kill ! *)
+
+let rec optimize : M.func -> M.func = 
+  let aux transfer (func, flag) = 
+    let (func', flag') = transfer func in 
+      (func', flag || flag') in 
+  fun func -> 
+    let (func, flag) = 
+      aux constant_propagation (func, false) 
+      |> aux copy_propagation   
+      |> aux dead_code_elimination in 
+    (if flag then optimize <-- compact
+    else compact) func

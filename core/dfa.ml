@@ -165,30 +165,6 @@ let do_dfa (dfa : 'a dfa) (pred : int list array) (succ : int list array)
 
 module LiveVariable = struct 
 
-  let rec temps_in_rvalue : M.rvalue -> T.t list = function 
-    | `Temp(t) -> [t]
-    | `Expr(expr) -> temps_in_expr expr 
-    | `Array_ref(i1, i2) -> temps_in_immediate i1 @ temps_in_immediate i2 
-    | `Instance_field_ref(i, _) -> temps_in_immediate i 
-    | _ -> [] 
-  
-  and temps_in_expr : M.expr -> T.t list = function 
-    | `Bin(i1, _, i2) | `Rel(i1, _, i2) -> 
-      temps_in_immediate i1 @ temps_in_immediate i2 
-    | `Static_invoke(_, i_list) -> 
-      List.fold_left (fun acc i -> temps_in_immediate i @ acc) [] i_list 
-    | `New_array_expr(_, i) -> temps_in_immediate i 
-    | _ -> [] 
-
-  and temps_in_immediate : M.immediate -> T.t list = 
-    fun x -> temps_in_rvalue (x :> M.rvalue)
-
-  and temps_in_var : M.var -> T.t list = 
-    fun x -> temps_in_rvalue (x :> M.rvalue)
-
-  and temps_in_condition : M.condition -> T.t list = function 
-    | `Temp(t) -> [t] 
-    | `Rel(x) -> temps_in_expr (`Rel(x))
 
 
   let gen : T.t Bs.t -> T.t list -> T.t Bs.t = 
@@ -198,6 +174,7 @@ module LiveVariable = struct
     List.fold_left (fun acc t -> Bs.remove t acc)
 
   let transfer : M.stmt -> T.t Bs.t -> T.t Bs.t = 
+    let open M in 
     function
       | `Assign(var, rvalue) -> 
         let tvars = temps_in_var var in 
@@ -525,24 +502,18 @@ module ConstantPropagation = struct
                     match get_val map i1, get_val map i2 with 
                       | Const(c), Const(c') -> 
                         Map.replace t (Const(interprete_bin c c' bop)) map 
-                      | Top, _ -> 
-                        Map.replace t Top map 
-                      | _, Top -> 
-                        Map.replace t Top map 
-                      | _ -> Map.replace t Bottom map 
+                      | Bottom, Bottom -> Map.replace t Bottom map
+                      | _ -> Map.replace t Top map 
                   end
                 | `Rel(i1, rop, i2) -> fun map -> 
                   begin 
                     match get_val map i1, get_val map i2 with 
                       | Const(c), Const(c') -> 
                         Map.replace t (Const(interprete_rel c c' rop)) map 
-                      | Top, _ -> 
-                        Map.replace t Top map 
-                      | _, Top -> 
-                        Map.replace t Top map 
-                      | _ -> Map.replace t Bottom map 
+                      | Bottom, Bottom -> Map.replace t Bottom map
+                      | _ -> Map.replace t Top map 
                   end
-                | `No -> id
+                | `No -> fun map -> Map.replace t Top map
         end 
       | _ -> id
 
@@ -659,18 +630,29 @@ module CopyPropagation = struct
       | `Temp(v) -> `Temp(v)
       | _ -> `No
 
+  let kill : t -> T.t -> t = 
+    fun tbl t -> 
+    Map.fold 
+    (fun t' v tbl -> 
+    match v with 
+      | `Copy(t'') when t'' = t -> Map.replace t' `Bottom tbl 
+      | _ -> tbl) tbl tbl
+
 
   let transfer : M.stmt -> t -> t = 
     let id = fun x -> x in 
     function 
       | `Assign(`Temp(t), `Temp(t')) -> fun map -> 
+        (*
         begin 
           match Map.find map t' with 
             | `Copy(t'') when not (t' = t'') -> Map.replace t (`Copy(t'')) map 
             | _ -> Map.replace t (`Copy(t')) map 
         end 
+        *) 
+        Map.replace t (`Copy(t')) (kill map t)
       | `Assign(`Temp(t), _) -> fun map -> 
-        Map.replace t `Top map
+        Map.replace t `Bottom map
       | _ -> id
   
   let copy_propagation (func : M.func) : (T.t, value) Map.t dfa = 

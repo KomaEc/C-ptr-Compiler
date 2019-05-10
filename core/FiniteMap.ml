@@ -36,3 +36,11 @@ let equal : ('a, 'value) t -> ('a, 'value) t -> bool =
   (fun x v acc -> 
   let v' = H.find tbl2 x in 
   acc && (v = v')) tbl1 true
+
+
+let iter : ('a -> 'value -> unit) -> ('a, 'value) t -> unit = 
+  H.iter
+
+
+let fold : ('a -> 'value -> 'acc -> 'acc) -> ('a, 'value) t -> 'acc -> 'acc = 
+  H.fold

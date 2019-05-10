@@ -157,6 +157,35 @@ and transform_immediate =
 
     fun stmt -> transform_stmt stmt, !flag
 
+
+
+
+  
+let rec temps_in_rvalue : rvalue -> Temp.t list = function 
+  | `Temp(t) -> [t]
+  | `Expr(expr) -> temps_in_expr expr 
+  | `Array_ref(i1, i2) -> temps_in_immediate i1 @ temps_in_immediate i2 
+  | `Instance_field_ref(i, _) -> temps_in_immediate i 
+  | _ -> [] 
+  
+and temps_in_expr : expr -> Temp.t list = function 
+  | `Bin(i1, _, i2) | `Rel(i1, _, i2) -> 
+    temps_in_immediate i1 @ temps_in_immediate i2 
+  | `Static_invoke(_, i_list) -> 
+    List.fold_left (fun acc i -> temps_in_immediate i @ acc) [] i_list 
+  | `New_array_expr(_, i) -> temps_in_immediate i 
+  | _ -> [] 
+
+and temps_in_immediate : immediate -> Temp.t list = 
+  fun x -> temps_in_rvalue (x :> rvalue)
+
+and temps_in_var : var -> Temp.t list = 
+  fun x -> temps_in_rvalue (x :> rvalue)
+
+and temps_in_condition : condition -> Temp.t list = function 
+  | `Temp(t) -> [t] 
+  | `Rel(x) -> temps_in_expr (`Rel(x))
+
 (* Printing Utility *)
 
 let var_to_rvalue : var -> rvalue = 
