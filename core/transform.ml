@@ -56,7 +56,7 @@ let rec simple_jump_peephole : stmt list -> stmt list =
     | s :: (s' :: sl' as sl) -> 
       match s, s' with 
         | `Goto(`Label(l)), `Label(l') when l = l' -> simple_jump_peephole sl' 
-     (*  | `Goto(_ as l), `Goto(_) -> (`Goto(l)) :: simple_jump_peephole sl' *)
+        | `Goto(_ as l), `Goto(_) -> (`Goto(l)) :: simple_jump_peephole sl' 
         | _ -> s :: simple_jump_peephole sl
 
 

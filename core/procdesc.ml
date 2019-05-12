@@ -80,7 +80,7 @@ let from_func (func: M.func) : t =
     Array.iteri 
     (fun i -> function 
     | `Label(l) when i > 0 -> 
-      Hashtbl.add tbl l (i - !offset);
+      Hashtbl.add tbl l (i - !offset - 1);
       incr offset 
     | _ -> ()) instrs;
     let aux = Array.make (Array.length instrs - !offset - 1) `Nop in
