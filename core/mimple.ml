@@ -111,32 +111,32 @@ let get_formals (func : func) : (Temp.t * ty) list =
   List.map2 
   (fun (`Identity(`Temp(t), _)) ty -> (t, ty)) func.identities func.func_args
 
-  let convert_to_lnum func = 
-    let instrs = Array.of_list func.func_body in
-    let tbl = Hashtbl.create 16 in 
-    let offset = ref 0 in 
-    Array.iteri 
-    (fun i -> function 
-    | `Label(l) when i > 0 -> 
-      Hashtbl.add tbl l (i - !offset - 1);
-      incr offset 
-    | _ -> ()) instrs;
-    let aux = Array.make (Array.length instrs - !offset - 1) `Nop in
-    offset := 0;
-    Array.iteri
-    (fun i -> function 
-    | _ when i = 0 -> () 
-    | `Label(_) -> () 
-    | `Goto(`Label(l)) -> 
-      aux.(!offset) <- (`Goto(`Line_num(Hashtbl.find tbl l)));
-      incr offset 
-    | `If(cond, `Label(l)) -> 
-      aux.(!offset) <- (`If(cond, `Line_num(Hashtbl.find tbl l)));
-      incr offset
-    | _ as stmt -> 
-      aux.(!offset) <- stmt;
-      incr offset) instrs ;
-      { func with func_body = Array.to_list aux}
+let convert_to_lnum func = 
+  let instrs = Array.of_list func.func_body in
+  let tbl = Hashtbl.create 16 in 
+  let offset = ref 0 in 
+  Array.iteri 
+  (fun i -> function 
+  | `Label(l) when i > 0 -> 
+    Hashtbl.add tbl l (i - !offset - 1);
+    incr offset 
+  | _ -> ()) instrs;
+  let aux = Array.make (Array.length instrs - !offset - 1) `Nop in
+  offset := 0;
+  Array.iteri
+  (fun i -> function 
+  | _ when i = 0 -> () 
+  | `Label(_) -> () 
+  | `Goto(`Label(l)) -> 
+    aux.(!offset) <- (`Goto(`Line_num(Hashtbl.find tbl l)));
+    incr offset 
+  | `If(cond, `Label(l)) -> 
+    aux.(!offset) <- (`If(cond, `Line_num(Hashtbl.find tbl l)));
+    incr offset
+  | _ as stmt -> 
+    aux.(!offset) <- stmt;
+    incr offset) instrs ;
+    { func with func_body = Array.to_list aux}
 
 
 let transform_stmt (to_var : Temp.t -> immediate) : stmt -> stmt * bool = 

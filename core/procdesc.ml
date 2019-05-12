@@ -16,6 +16,16 @@ module Node = struct
     mutable succ: t list;
   }
 
+  let dummy : t = 
+  {
+    id = -1;
+    instrs = [||];
+    loc = -1;
+    pname = Symbol.symbol "dummy";
+    pred = [];
+    succ = [];
+  }
+
   let compare node1 node2 = Pervasives.compare node1.id node2.id 
 
   let hash node = Hashtbl.hash node.id 
@@ -46,6 +56,16 @@ module Node = struct
   let iter_pred : (t -> unit) -> t -> unit = 
     fun f node -> List.iter f node.succ
 
+  let make id instrs loc pname = 
+  {
+    id;
+    instrs;
+    loc;
+    pname;
+    pred = [];
+    succ = [];
+  }
+
 end 
 
 
@@ -69,7 +89,7 @@ let fold : ('acc -> Node.t -> 'acc) -> 'acc -> t -> 'acc =
   fun f acc proc -> 
     List.fold_left f acc proc.nodes
 
-(*
+
 let from_func (func: M.func) : t = 
   let locals = M.get_locals func 
   and formals = M.get_formals func 
@@ -88,7 +108,7 @@ let from_func (func: M.func) : t =
     Array.iteri
     (fun i -> function 
     | _ when i = 0 -> () 
-    | `Label(l) -> () 
+    | `Label(_) -> () 
     | `Goto(`Label(l)) -> 
       aux.(!offset) <- (`Goto(`Line_num(Hashtbl.find tbl l)));
       incr offset 
@@ -97,6 +117,36 @@ let from_func (func: M.func) : t =
       incr offset
     | _ as stmt -> 
       aux.(!offset) <- stmt;
-      incr offset) instrs in 
-  let () = convert_to_lnum () in 
-*)
+      incr offset) instrs;
+    aux in 
+  let instrs = convert_to_lnum() 
+  and id = ref (-1) in 
+  let length = Array.length instrs
+  and is_leader = Array.make (Array.length instrs) false in
+  Array.iteri 
+  (fun i -> function 
+    | _ when i = 0 -> is_leader.(i) <- true 
+    | `Goto(`Line_num(j)) | `If(_, `Line_num(j)) -> 
+      is_leader.(j) <- true;
+      if i < length - 1 then is_leader.(i+1) <- true
+    | _ -> ()) instrs;
+  let nodes_ref = ref [] 
+  and () = id := 0 
+  and l = ref 0 in
+  for r = 1 to length - 1 do 
+    if is_leader.(r) then 
+    let newinstrs = Array.make (r - !l) `Nop in 
+    Array.blit instrs !l newinstrs 0 (r - !l);
+    let node = Node.make !id newinstrs !l func.func_name in 
+    nodes_ref := node :: !nodes_ref
+  done;
+  let nodes = !nodes_ref |> List.rev in 
+  {
+    pname = func.func_name;
+    locals;
+    formals;
+    nodes;
+    node_num = List.length nodes;
+    start_node = Node.dummy;
+    exit_node = Node.dummy;
+  }
