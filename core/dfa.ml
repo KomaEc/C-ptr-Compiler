@@ -165,7 +165,9 @@ let do_dfa (dfa : 'a dfa) (pred : int list array) (succ : int list array)
 
 module LiveVariable = struct 
 
+  type t = T.t Bs.t
 
+  let is_backward = true
 
   let gen : T.t Bs.t -> T.t list -> T.t Bs.t = 
     List.fold_left (fun acc t -> Bs.insert t acc) 
@@ -257,6 +259,8 @@ end
 module Lv = LiveVariable
 
 module ReachingDefinition = struct 
+
+  let is_backward = false
 
   let rec get_def_var : M.var -> T.t option = 
     function 
@@ -390,6 +394,8 @@ end
 module Ae = AvailableExpression
 
 module ConstantPropagation = struct
+
+  let is_backward = false
 
   type value = 
     | Top 
@@ -590,6 +596,8 @@ module Cp = ConstantPropagation
 
 module CopyPropagation = struct 
 
+  let is_backward = false
+
   type value = [
     | `Copy of T.t 
     | `Top 
@@ -635,8 +643,9 @@ module CopyPropagation = struct
     Map.fold 
     (fun t' v tbl -> 
     match v with 
-      | `Copy(t'') when t'' = t -> Map.replace t' `Bottom tbl 
+      | `Copy(t'') when t'' = t -> Map.replace t' `Top tbl 
       | _ -> tbl) tbl tbl
+    |> Map.replace t `Top
 
 
   let transfer : M.stmt -> t -> t = 
@@ -652,7 +661,8 @@ module CopyPropagation = struct
         *) 
         Map.replace t (`Copy(t')) (kill map t)
       | `Assign(`Temp(t), _) -> fun map -> 
-        Map.replace t `Bottom map
+        (*Map.replace t `Top map*)
+        kill map t
       | _ -> id
   
   let copy_propagation (func : M.func) : (T.t, value) Map.t dfa = 

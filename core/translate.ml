@@ -3,6 +3,8 @@
 open Types
 module M = Mimple
 module T = Transform
+module U = Cm_util.Util
+open U
 
 (* TODO : add global var reference, when doing semantics check, 
  * the occurence of glb vars are recorded here 
@@ -108,10 +110,8 @@ let get_mimple2 () =
 let get_mimple3 () = 
   List.rev !prog_frag |> List.map T.simplify_func3
 
-let ( <+ ) f g = fun x -> f ( g x)
-
 let optimize () = 
-  List.rev !prog_frag |> List.map (T.optimize <+ T.simplify_func)
+  List.rev !prog_frag |> List.map (T.simplify_func <-- T.optimize <-- T.simplify_func)
 
 (*
 let code_frag : prog ref = ref [] 
