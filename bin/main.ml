@@ -76,14 +76,12 @@ let () =
           print_endline "\nTranslating to Mimple...\n";
           Mimple.print_prog prog;
           print_newline ();
+          let prog1 = T.get_mimple1() in 
+          Mimple.print_prog prog1;
+          print_newline();
           print_string "Analysis Result : \n\n";
           Dfa.analysis_prog prog;
           print_string "Optimizting... \n\n";
-          let prog2 = T.get_mimple2() in 
-          Mimple.print_prog prog2;
-          print_newline();
-          let prog3 = T.get_mimple3() in 
-          Mimple.print_prog prog3;
           let prog4 = T.optimize() in 
           Mimple.print_prog prog4;
           close_in inx

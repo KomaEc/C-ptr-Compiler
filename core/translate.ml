@@ -104,6 +104,9 @@ let end_function () =
 let get_mimple () = 
   List.rev !prog_frag |> List.map T.simplify_func
 
+let get_mimple1 () = 
+  List.rev !prog_frag |> List.map (M.convert_to_lnum <-- T.simplify_func)
+
 let get_mimple2 () = 
   List.rev !prog_frag |> List.map T.simplify_func2
 

@@ -69,19 +69,36 @@ let do_dfa (dfa : 'a t) : 'a result =
     res 
   end
 
+
+module type S = 
+sig 
+  type abstract_value
+
+  val is_backward : bool 
+
+  val transfer : M.stmt -> abstract_value -> abstract_value 
+
+  val meet : abstract_value -> abstract_value -> abstract_value 
+
+  val equal : abstract_value -> abstract_value -> bool
+
+  val bottom : abstract_value
+
+  val entry_or_exit_facts : abstract_value
+
+  val gen_bot_and_entry_or_exit_facts: Procdesc.t -> abstract_value * abstract_value
+
+
+end
+
     
-module Transfer_Function 
-  (X : 
-  sig 
-    type t
-    val is_backward : bool
-    val transfer : M.stmt -> t -> t
-  end) = 
+module Make
+  (X : S) = 
 struct 
 
-  type t = X.t 
+  type abstract_value = X.abstract_value
 
-  let transfer : Procdesc.Node.t -> t -> t = 
+  let transfer : Procdesc.Node.t -> abstract_value -> abstract_value = 
     fun node -> 
       let instrs = Procdesc.Node.get_instrs node in 
       if X.is_backward then
@@ -92,5 +109,17 @@ struct
         Array.fold_right
         (fun stmt trs -> 
         X.transfer stmt <-- trs) instrs (fun x -> x)
+
+  let from_proc (proc : Procdesc.t) : abstract_value t = 
+    let bottom, entry_or_exit_facts = X.gen_bot_and_entry_or_exit_facts proc in
+    {
+      proc;
+      dir = (match X.is_backward with true -> D_Backward | false -> D_Forward);
+      meet = X.meet;
+      equal = X.equal;
+      transfer;
+      entry_or_exit_facts;
+      bottom;
+    }
 
 end 

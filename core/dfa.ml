@@ -167,6 +167,12 @@ module LiveVariable = struct
 
   type t = T.t Bs.t
 
+  type abstract_value = t
+
+  let meet = Bs.union 
+
+  let equal = Bs.equal 
+
   let is_backward = true
 
   let gen : T.t Bs.t -> T.t list -> T.t Bs.t = 
