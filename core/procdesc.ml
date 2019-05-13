@@ -1,6 +1,7 @@
 
-
+module P = Cm_util.Printing
 module M = Mimple
+open P
 
 module Node = struct 
 
@@ -66,6 +67,17 @@ module Node = struct
     succ = [];
   }
 
+  let string_of_node : t -> string = fun node -> 
+    let res = ref ("=====Start node " ^ string_of_int node.id ^ "=====\n") in
+    res := !res ^ "preds : " ^ (string_of_list string_of_int (List.map get_id node.pred)) ^ "\n";
+    Array.iteri 
+    (fun i stmt -> 
+    res := !res ^ "line " ^ string_of_int (i + node.loc) ^ 
+    M.string_of_stmt stmt ^ "\n") node.instrs; 
+    res := !res ^ "succs : " ^ (string_of_list string_of_int (List.map get_id node.succ));
+    res := !res ^ "\n======End node " ^ string_of_int node.id ^ "=====\n\n";
+    !res
+
 end 
 
 
@@ -119,10 +131,10 @@ let from_func (func: M.func) : t =
       aux.(!offset) <- stmt;
       incr offset) instrs;
     aux in 
-  let instrs = convert_to_lnum() 
-  and id = ref (-1) in 
-  let length = Array.length instrs
-  and is_leader = Array.make (Array.length instrs) false in
+  let instrs = convert_to_lnum() in
+  let length = Array.length instrs in
+  let is_leader = Array.make (length + 1) false in
+  is_leader.(length) <- true;
   Array.iteri 
   (fun i -> function 
     | _ when i = 0 -> is_leader.(i) <- true 
@@ -131,14 +143,14 @@ let from_func (func: M.func) : t =
       if i < length - 1 then is_leader.(i+1) <- true
     | _ -> ()) instrs;
   let nodes_ref = ref [] 
-  and () = id := 0 
+  and id = ref 0
   and l = ref 0 in
-  for r = 1 to length - 1 do 
+  for r = 1 to length do 
     if is_leader.(r) then 
     let newinstrs = Array.make (r - !l) `Nop in 
     Array.blit instrs !l newinstrs 0 (r - !l);
     let node = Node.make !id newinstrs !l func.func_name in 
-    nodes_ref := node :: !nodes_ref
+    nodes_ref := node :: !nodes_ref; incr id; l := r
   done;
   let nodes = !nodes_ref |> List.rev in 
   {
@@ -150,3 +162,14 @@ let from_func (func: M.func) : t =
     start_node = Node.dummy;
     exit_node = Node.dummy;
   }
+
+let string_of_proc : t -> string = fun procdesc -> 
+  List.fold_left 
+  (fun str node -> str ^ Node.string_of_node node) "" procdesc.nodes
+
+let from_prog : M.prog -> t list = 
+  List.map from_func
+
+let string_of_t_list : t list -> string = 
+  List.fold_left 
+  (fun str proc -> str ^ "\n" ^ string_of_proc proc) "" 
