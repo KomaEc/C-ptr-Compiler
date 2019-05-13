@@ -144,15 +144,39 @@ let from_func (func: M.func) : t =
     | _ -> ()) instrs;
   let nodes_ref = ref [] 
   and id = ref 0
-  and l = ref 0 in
+  and l = ref 0
+  and tbl : (int, int) Hashtbl.t = Hashtbl.create 16 (* maps starting instrs line number to node id*)
+   in
+  Hashtbl.add tbl 0 0 ;
   for r = 1 to length do 
     if is_leader.(r) then 
     let newinstrs = Array.make (r - !l) `Nop in 
     Array.blit instrs !l newinstrs 0 (r - !l);
     let node = Node.make !id newinstrs !l func.func_name in 
+    Hashtbl.add tbl r (!id + 1);
     nodes_ref := node :: !nodes_ref; incr id; l := r
   done;
   let nodes = !nodes_ref |> List.rev in 
+  let nodes_array = Array.of_list nodes in
+  let length_of_nodes = List.length nodes in
+  let open Node in
+  Array.iteri (fun i node -> 
+             match node.instrs.(Array.length node.instrs - 1) with 
+               | `Goto(`Line_num(j)) -> 
+                 let id' = Hashtbl.find tbl j in
+                 node.succ <- [nodes_array.(id')];
+                 nodes_array.(id').pred <- node :: nodes_array.(id').pred; 
+               | `If(_, `Line_num(j)) -> 
+                 let id' = Hashtbl.find tbl j in
+                 node.succ <- [nodes_array.(id')];
+                 nodes_array.(id').pred <- node :: nodes_array.(id').pred; 
+                 if i < length_of_nodes - 1 then 
+                 (node.succ <- nodes_array.(i+1) :: node.succ;
+                 nodes_array.(i+1).pred <- node :: nodes_array.(i+1).pred)
+               | _ -> 
+                 if i < length_of_nodes - 1 then 
+                 (node.succ <- nodes_array.(i+1) :: node.succ;
+                 nodes_array.(i+1).pred <- node :: nodes_array.(i+1).pred)) nodes_array;
   {
     pname = func.func_name;
     locals;
