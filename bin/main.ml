@@ -13,6 +13,7 @@ open Cm_core.Support.Error
 module Dfa = Cm_core.Dfa
 module T = Cm_core.Translate
 module Proc = Cm_core.Procdesc
+module Dataflow = Cm_core.Dataflow
 
 let print_position outx lexbuf = 
   let pos = lexbuf.lex_curr_p in 
@@ -79,14 +80,17 @@ let () =
           print_newline ();
           let procs = Proc.from_prog prog in 
           print_endline (Proc.string_of_t_list procs);
-          (*let prog1 = T.get_mimple1() in 
+          let prog1 = T.get_mimple1() in 
           Mimple.print_prog prog1;
           print_newline();
           print_string "Analysis Result : \n\n";
           Dfa.analysis_prog prog;
           print_string "Optimizting... \n\n";
           let prog4 = T.optimize() in 
-          Mimple.print_prog prog4;*)
+          Mimple.print_prog prog4;
+
+          print_newline();
+          Dataflow.print_result prog;
           close_in inx
           )
   | _ -> fprintf stderr "Too many arguments! Expected 1\n"; exit(0)

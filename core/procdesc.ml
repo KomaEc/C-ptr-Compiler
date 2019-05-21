@@ -6,25 +6,7 @@ open P
 module Node = struct 
 
   type id = int 
-(*
-  type internal = {
-    id: id;
-    instrs: M.stmt array;
-    loc: int; (* Start index in the original procedure *)
-    pname: Symbol.t;
-    mutable pred: internal t list * exit t list;
-    mutable succ: internal t list * entry t list;
-  }
 
-  and exit 
-
-  and entry
-
-  and _ t = 
-    | Internal : internal -> internal t
-    | Exit : exit t 
-    | Entry : entry t
-    *)
 
   type t = {
     id: id;

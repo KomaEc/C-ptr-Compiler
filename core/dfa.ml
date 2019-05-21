@@ -231,6 +231,18 @@ module LiveVariable = struct
       ^ string_of_stmt_and_res stmt res) "" func_body res)
     ^ "EndFunc\n"  
 
+  let gen_bot_and_entry_or_exit_facts (func : M.func) : T.t Bs.t * T.t Bs.t = 
+    let locals : T.t list = 
+      List.fold_left
+      (fun acc (`Temp_decl(`Temp(t), _)) -> 
+      t :: acc) [] func.local_decls
+      |> fun base -> 
+      List.fold_left
+      (fun acc (`Identity(`Temp(t), _)) ->
+      t :: acc) base func.identities in 
+    let bvs = Bs.mkempty locals in 
+    bvs, bvs
+
   let live_vars (func : M.func) : T.t Bs.t dfa = 
     let locals : T.t list = 
       List.fold_left 
