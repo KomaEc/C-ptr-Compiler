@@ -98,7 +98,7 @@ struct
   let transfer : Procdesc.Node.t -> abstract_value -> abstract_value = 
     fun node -> 
       let instrs = Procdesc.Node.get_instrs node in 
-      if X.is_backward then
+      if not X.is_backward then
         Array.fold_left
         (fun trs stmt -> 
         X.transfer stmt <-- trs) (fun x -> x) instrs
@@ -134,8 +134,8 @@ struct
         begin
           acc
           ^ Procdesc.Node.string_of_node node
-          ^"\n"
           ^ X.string_of_result (Hashtbl.find res (Procdesc.Node.get_id node))
+          ^"\n"
         end)
     "" dfa.proc
 
