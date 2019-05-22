@@ -17,12 +17,22 @@ module Node = struct
     mutable succ: t list;
   } 
 
-  let dummy : t = 
+  let make_exit (pname : Symbol.t) : t =
+  {
+    id = -2;
+    instrs = [||];
+    loc = -2;
+    pname;
+    pred = [];
+    succ = [];
+  }
+
+  let make_entry (pname : Symbol.t) : t =
   {
     id = -1;
     instrs = [||];
     loc = -1;
-    pname = Symbol.symbol "dummy";
+    pname;
     pred = [];
     succ = [];
   }
@@ -178,14 +188,28 @@ let from_func (func: M.func) : t =
                  if i < length_of_nodes - 1 then 
                  (node.succ <- nodes_array.(i+1) :: node.succ;
                  nodes_array.(i+1).pred <- node :: nodes_array.(i+1).pred)) nodes_array;
+  let entry = Node.make_entry func.func_name
+  and exit = Node.make_exit func.func_name in
+  List.iter
+  (fun node -> 
+    begin 
+      match get_preds node with 
+        | [] -> node.pred <- [entry]; entry.succ <- node :: entry.succ
+        | _ -> ()
+    end;
+    begin
+      match get_succs node with 
+        | [] -> node.succ <- [exit]; exit.pred <- node :: exit.pred
+        | _ -> ()
+    end) nodes;
   {
     pname = func.func_name;
     locals;
     formals;
-    nodes;
+    nodes = entry :: (nodes @ [exit]);
     node_num = List.length nodes;
-    start_node = Node.dummy;
-    exit_node = Node.dummy;
+    start_node = entry;
+    exit_node = exit;
   }
 
 let string_of_proc : t -> string = fun procdesc -> 

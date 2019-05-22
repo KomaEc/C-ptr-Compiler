@@ -806,7 +806,7 @@ struct
    * No! better use finite map! 
    * Reasons : 1, semantics are clear in the sense of Abstract Interpretation
    * (map variable to its related expressions
-   * 2. No need for a global expression set, which prevents composability *)
+   * 2. No need for a global expression set, which promotes composability *)
 
 
   module Map = FiniteMap
@@ -832,9 +832,9 @@ struct
       List.fold_left 
       (fun acc (`Identity(`Temp(t), _)) -> 
       t :: acc) base func.identities in
-    let entry_or_exit_facts =
+    let bot =
       locals |> List.map (fun y -> (y, ExprSet.empty)) |> Map.mkempty in
-    let bot = 
+    let entry_or_exit_facts = 
       List.fold_left
         (fun acc -> function
           | `Assign(_, `Expr(`Bin(_) as e)) -> 
@@ -845,7 +845,7 @@ struct
             List.fold_left (fun acc' t -> 
                               let eset = Map.find acc' t in
                               Map.replace t (ExprSet.add e eset) acc') acc (temps_in_expr e)
-          | _ -> acc) entry_or_exit_facts func.func_body in
+          | _ -> acc) bot func.func_body in
     (bot, entry_or_exit_facts) 
 
 
@@ -860,7 +860,7 @@ struct
           let eset = Map.find acc t in
           Map.replace t (ExprSet.add e eset) acc) tbl (temps_in_expr e)
 
-
+  (* TODO : use information is only partially collected!!! *)
   let transfer : M.stmt -> abstract_value -> abstract_value = function
     | `Assign(var, rvalue) -> 
       let tvars = M.temps_in_var var in

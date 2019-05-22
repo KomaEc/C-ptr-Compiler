@@ -28,7 +28,7 @@ type 'abstract_value t =
 }
 
 type 'abstract_value result = (Procdesc.Node.id, 'abstract_value) Hashtbl.t
-
+(* TODO :: distinguish exit node and entry node, change the initial value to eev *)
 let do_dfa (dfa : 'abstract_value t) : 'abstract_value result = 
   
   let worklist : Procdesc.Node.t Queue.t = Queue.create()
@@ -40,13 +40,19 @@ let do_dfa (dfa : 'abstract_value t) : 'abstract_value result =
       | D_Forward -> Procdesc.Node.fold_pred, Procdesc.Node.iter_succ 
       | D_Backward -> Procdesc.Node.fold_succ, Procdesc.Node.iter_pred
 
+  and entry : Procdesc.Node.t = 
+    match dfa.dir with 
+      | D_Forward -> dfa.proc.start_node
+      | D_Backward -> dfa.proc.exit_node
+
   and ( <+> ) : 'abstract_value -> 'abstract_value -> 'abstract_value = dfa.meet 
 
   and ( <=> ) : 'abstract_value -> 'abstract_value -> bool = dfa.equal in 
 
   let init () =
     Procdesc.iter 
-    (fun node -> Queue.add node worklist; Hashtbl.add res (Procdesc.Node.get_id node) dfa.bottom) dfa.proc 
+    (fun node -> Queue.add node worklist; Hashtbl.add res (Procdesc.Node.get_id node) dfa.bottom) dfa.proc;
+    Hashtbl.replace res (Procdesc.Node.get_id entry) dfa.entry_or_exit_facts
 
   and run_worklist () = 
     while not (Queue.is_empty worklist) do 
