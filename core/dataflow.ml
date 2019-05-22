@@ -40,23 +40,32 @@ let do_dfa (dfa : 'abstract_value t) : 'abstract_value result =
       | D_Forward -> Procdesc.Node.fold_pred, Procdesc.Node.iter_succ 
       | D_Backward -> Procdesc.Node.fold_succ, Procdesc.Node.iter_pred
 
-  and entry : Procdesc.Node.t = 
+  and entry, is_entry = 
     match dfa.dir with 
-      | D_Forward -> dfa.proc.start_node
-      | D_Backward -> dfa.proc.exit_node
+      | D_Forward -> dfa.proc.start_node, Procdesc.Node.is_entry
+      | D_Backward -> dfa.proc.exit_node, Procdesc.Node.is_exit
 
   and ( <+> ) : 'abstract_value -> 'abstract_value -> 'abstract_value = dfa.meet 
 
   and ( <=> ) : 'abstract_value -> 'abstract_value -> bool = dfa.equal in 
 
   let init () =
-    Procdesc.iter 
-    (fun node -> Queue.add node worklist; Hashtbl.add res (Procdesc.Node.get_id node) dfa.bottom) dfa.proc;
-    Hashtbl.replace res (Procdesc.Node.get_id entry) dfa.entry_or_exit_facts
+    begin
+      Procdesc.iter 
+      (fun node -> 
+      (* We should carefully add only internals node and exit nodes
+       * otherwise, when doing must kind dfa, the fold_pred below 
+       * will have wrong semantics *)
+        if not (is_entry node) then Queue.add node worklist;
+        Hashtbl.add res (Procdesc.Node.get_id node) dfa.bottom) dfa.proc;
+      Hashtbl.replace res (Procdesc.Node.get_id entry) dfa.entry_or_exit_facts
+    end
 
   and run_worklist () = 
     while not (Queue.is_empty worklist) do 
       let node = Queue.pop worklist in 
+     (* print_int (Procdesc.Node.get_id node);
+      print_newline (); (* ??? *) *)
       let this_input = 
         fold_pred 
         (fun acc node' ->
@@ -66,7 +75,14 @@ let do_dfa (dfa : 'abstract_value t) : 'abstract_value result =
         | true -> () 
         | false -> 
           Hashtbl.replace res (Procdesc.Node.get_id node) new_output;
-          iter_succ (fun node' -> Queue.add node' worklist) node
+          (*print_string "During processing node : ";
+           print_int (Procdesc.Node.get_id node);
+           print_string "\n new nodes : ";*)
+          iter_succ (fun node' -> (*if not (is_entry node') then*)
+          (* print_int (Procdesc.Node.get_id node');
+           print_string ", ";*)
+           Queue.add node' worklist) node;
+           (*print_string " are added \n"*)
     done in 
 
   begin

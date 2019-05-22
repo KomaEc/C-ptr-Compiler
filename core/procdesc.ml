@@ -37,6 +37,12 @@ module Node = struct
     succ = [];
   }
 
+  let is_exit : t -> bool = fun node -> node.id = -2
+  
+  let is_entry : t -> bool = fun node -> node.id = -1
+
+  let is_internal : t -> bool = fun node -> not (is_entry node) && not (is_exit node)
+
 
   let compare node1 node2 = Pervasives.compare node1.id node2.id 
 
@@ -63,10 +69,10 @@ module Node = struct
       List.fold_left f acc node.pred
 
   let iter_succ : (t -> unit) -> t -> unit = 
-    fun f node -> List.iter f node.pred
+    fun f node -> List.iter f node.succ
 
   let iter_pred : (t -> unit) -> t -> unit = 
-    fun f node -> List.iter f node.succ
+    fun f node -> List.iter f node.pred
 
   let make id instrs loc pname = 
   {
@@ -207,7 +213,7 @@ let from_func (func: M.func) : t =
     locals;
     formals;
     nodes = entry :: (nodes @ [exit]);
-    node_num = List.length nodes;
+    node_num = List.length nodes + 2;
     start_node = entry;
     exit_node = exit;
   }

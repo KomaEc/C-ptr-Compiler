@@ -46,3 +46,6 @@ let iter : ('a -> 'value -> unit) -> ('a, 'value) t -> unit =
 
 let fold : ('a -> 'value -> 'acc -> 'acc) -> ('a, 'value) t -> 'acc -> 'acc = 
   H.fold
+
+let filter_map_inplace : ('a -> 'value -> 'value option) -> ('a, 'value) t -> unit =
+  H.filter_map_inplace

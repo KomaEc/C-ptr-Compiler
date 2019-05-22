@@ -832,9 +832,9 @@ struct
       List.fold_left 
       (fun acc (`Identity(`Temp(t), _)) -> 
       t :: acc) base func.identities in
-    let bot =
+    let top =
       locals |> List.map (fun y -> (y, ExprSet.empty)) |> Map.mkempty in
-    let entry_or_exit_facts = 
+    let bot = 
       List.fold_left
         (fun acc -> function
           | `Assign(_, `Expr(`Bin(_) as e)) -> 
@@ -845,13 +845,16 @@ struct
             List.fold_left (fun acc' t -> 
                               let eset = Map.find acc' t in
                               Map.replace t (ExprSet.add e eset) acc') acc (temps_in_expr e)
-          | _ -> acc) bot func.func_body in
-    (bot, entry_or_exit_facts) 
+          | _ -> acc) top func.func_body in
+    (bot, top) 
 
 
   let kill : T.t -> abstract_value -> abstract_value = 
     fun t tbl -> 
-      Map.replace t ExprSet.empty tbl
+      let expr_set = Map.find tbl t in
+      Map.filter_map_inplace
+        (fun _ expr_set' -> Some (ExprSet.diff expr_set' expr_set)) tbl;
+      tbl
 
   let gen : expr -> abstract_value -> abstract_value = 
     fun e tbl -> 
