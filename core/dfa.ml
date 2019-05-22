@@ -4,6 +4,7 @@ module S = Symbol
 module T = Temp
 module Ty = Types
 module P = Cm_util.Printing
+module UF = Cm_util.Union_and_find
 
 type dir_type = 
   | D_Forward 
@@ -202,11 +203,11 @@ module LiveVariable = struct
   let string_of_result : T.t Bs.t -> string = 
     let rec string_of_temps = 
       function 
-        | [] -> ""
+        | [] -> "Empty"
         | [t] -> T.string_of_temp t 
         | t :: tl -> 
           T.string_of_temp t ^ ", " ^ string_of_temps tl in 
-    fun x -> string_of_temps (Bs.to_list x)
+    fun x -> "live vars : " ^ string_of_temps (Bs.to_list x)
 
 
   let string_of_stmt_and_res 
@@ -752,6 +753,134 @@ module CopyPropagation = struct
 end 
 
 module Cop = CopyPropagation
+
+(*
+module Expr =
+struct 
+  type t = [
+      `Bin of M.immediate * M.binop * M.immediate
+    | `Rel of M.immediate * M.relop * M.immediate
+  ]
+
+  let equal : t -> t -> bool = 
+    fun expr1 expr2 -> 
+      match expr1, expr2 with
+        | `Bin(i1,bop,i2), `Bin(i1',bop',i2') 
+          when bop = bop' && (i1 = i1' && i2 = i2' || i1 = i2' && i2 = i1') -> true
+        | `Rel(i1,bop,i2), `Rel(i1',bop',i2')
+          when bop = bop' && (i1 = i1' && i2 = i2' || i1 = i2' && i2 = i1') -> true
+        | _ -> false  
+  
+  let hash = Hashtbl.hash 
+
+end
+
+module ExprHashtbl = Hashtbl.Make(Expr)
+*)
+
+module Anticipated =
+struct
+
+  type expr = [
+      `Bin of M.immediate * M.binop * M.immediate
+    | `Rel of M.immediate * M.relop * M.immediate
+  ]
+
+  let temps_in_expr : expr -> T.t list = 
+    fun expr -> M.temps_in_expr (expr :> M.expr)
+
+  let rvalue_to_expr_opt : M.rvalue -> expr option = function
+    | `Expr(`Bin(_) as e) -> Some e
+    | `Expr(`Rel(_) as e) -> Some e
+    | _ -> None
+
+  let string_of_expr : expr -> string = fun expr -> 
+    M.string_of_expr (expr :> M.expr)
+
+
+  let fold_right_opt : ('a -> 'acc -> 'acc) -> 'a option -> 'acc -> 'acc = 
+    fun f opt base -> match opt with
+      | Some x -> f x base
+      | None -> base
+  (* Sure to use finite set? 
+   * No! better use finite map! 
+   * Reasons : 1, semantics are clear in the sense of Abstract Interpretation
+   * (map variable to its related expressions
+   * 2. No need for a global expression set, which prevents composability *)
+
+
+  module Map = FiniteMap
+
+  module ExprSet = 
+    Set.Make(struct let compare = compare type t = expr end)
+
+  type abstract_value = (T.t, ExprSet.t) Map.t
+  (* map a temporary to a set of related expressions *)
+
+  let is_backward = true
+
+  let meet : abstract_value -> abstract_value -> abstract_value = Map.fold_meet ExprSet.inter
+
+  let equal : abstract_value -> abstract_value -> bool = Map.equal
+
+  let gen_bot_and_entry_or_exit_facts (func : M.func) : abstract_value * abstract_value = 
+    let locals : T.t list = 
+      List.fold_left 
+      (fun acc (`Temp_decl(`Temp(t), _)) ->
+      t :: acc) [] func.local_decls
+      |> fun base ->
+      List.fold_left 
+      (fun acc (`Identity(`Temp(t), _)) -> 
+      t :: acc) base func.identities in
+    let entry_or_exit_facts =
+      locals |> List.map (fun y -> (y, ExprSet.empty)) |> Map.mkempty in
+    let bot = 
+      List.fold_left
+        (fun acc -> function
+          | `Assign(_, `Expr(`Bin(_) as e)) -> 
+            List.fold_left (fun acc' t -> 
+                              let eset = Map.find acc' t in
+                              Map.replace t (ExprSet.add e eset) acc') acc (temps_in_expr e)
+          | `Assign(_, `Expr(`Rel(_) as e)) -> 
+            List.fold_left (fun acc' t -> 
+                              let eset = Map.find acc' t in
+                              Map.replace t (ExprSet.add e eset) acc') acc (temps_in_expr e)
+          | _ -> acc) entry_or_exit_facts func.func_body in
+    (bot, entry_or_exit_facts) 
+
+
+  let kill : T.t -> abstract_value -> abstract_value = 
+    fun t tbl -> 
+      Map.replace t ExprSet.empty tbl
+
+  let gen : expr -> abstract_value -> abstract_value = 
+    fun e tbl -> 
+      List.fold_left
+        (fun acc t -> 
+          let eset = Map.find acc t in
+          Map.replace t (ExprSet.add e eset) acc) tbl (temps_in_expr e)
+
+
+  let transfer : M.stmt -> abstract_value -> abstract_value = function
+    | `Assign(var, rvalue) -> 
+      let tvars = M.temps_in_var var in
+      fun v -> 
+        List.fold_right kill tvars v
+        |> fold_right_opt gen (rvalue_to_expr_opt rvalue)
+    | _ -> fun x -> x
+
+
+  let string_of_result : abstract_value -> string  = 
+    fun tbl -> 
+      Map.to_alist tbl
+      |> List.map snd
+      |> List.fold_left 
+          (fun acc eset -> ExprSet.to_seq eset |> Seq.fold_left (fun acc x -> x :: acc) acc) []
+      |> List.sort_uniq compare
+      |> P.string_of_list string_of_expr
+
+  
+end
 
 
 

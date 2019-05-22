@@ -36,7 +36,7 @@ and target = [
   | `Label of label 
   | `Line_num of int
 ]
-
+(* Bugs!! rvalue should contains [`Invoke] !!*)
 and rvalue = [
   | `Temp of Temp.t
   | `Const of const

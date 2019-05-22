@@ -16,33 +16,33 @@ type may_must_type =
   | K_Must 
 
 
-type 'a t = 
+type 'abstract_value t = 
 {
   proc: Procdesc.t;
   dir: dir_type;
-  meet: 'a -> 'a -> 'a;
-  equal: 'a -> 'a -> bool;
-  transfer: Procdesc.Node.t -> 'a -> 'a;
-  entry_or_exit_facts: 'a;
-  bottom: 'a;
+  meet: 'abstract_value -> 'abstract_value -> 'abstract_value;
+  equal: 'abstract_value -> 'abstract_value -> bool;
+  transfer: Procdesc.Node.t -> 'abstract_value -> 'abstract_value;
+  entry_or_exit_facts: 'abstract_value;
+  bottom: 'abstract_value;
 }
 
-type 'a result = (Procdesc.Node.id, 'a) Hashtbl.t
+type 'abstract_value result = (Procdesc.Node.id, 'abstract_value) Hashtbl.t
 
-let do_dfa (dfa : 'a t) : 'a result = 
+let do_dfa (dfa : 'abstract_value t) : 'abstract_value result = 
   
   let worklist : Procdesc.Node.t Queue.t = Queue.create()
 
-  and res : 'a result = Hashtbl.create dfa.proc.node_num 
+  and res : 'abstract_value result = Hashtbl.create dfa.proc.node_num 
 
   and fold_pred, iter_succ  = 
     match dfa.dir with 
       | D_Forward -> Procdesc.Node.fold_pred, Procdesc.Node.iter_succ 
       | D_Backward -> Procdesc.Node.fold_succ, Procdesc.Node.iter_pred
 
-  and ( <+> ) : 'a -> 'a -> 'a = dfa.meet 
+  and ( <+> ) : 'abstract_value -> 'abstract_value -> 'abstract_value = dfa.meet 
 
-  and ( <=> ) : 'a -> 'a -> bool = dfa.equal in 
+  and ( <=> ) : 'abstract_value -> 'abstract_value -> bool = dfa.equal in 
 
   let init () =
     Procdesc.iter 
@@ -90,7 +90,13 @@ end
 
     
 module Make
-  (X : S) = 
+  (X : S) : 
+  sig 
+    type abstract_value
+    val transfer : Procdesc.Node.t -> abstract_value -> abstract_value
+    val from_func : M.func -> abstract_value t
+    val string_of_result : abstract_value result -> abstract_value t -> string
+  end with type abstract_value = X.abstract_value = 
 struct 
 
   type abstract_value = X.abstract_value
@@ -146,9 +152,18 @@ module LV = Make(Dfa.LiveVariable)
 let lv (func : M.func) : LV.abstract_value result = 
   LV.from_func func |> do_dfa
 
+module Anticipate = Make(Dfa.Anticipated)
+
 let print_result (prog : M.prog) : unit = 
+(*
   List.iter
   (fun func ->
   let lv_dfa = LV.from_func func in
   let lv_res = do_dfa lv_dfa in 
   print_endline (LV.string_of_result lv_res lv_dfa)) prog
+  *)
+  List.iter
+  (fun func ->
+  let ant_dfa = Anticipate.from_func func in
+  let ant_res = do_dfa ant_dfa in 
+  print_endline (Anticipate.string_of_result ant_res ant_dfa)) prog
