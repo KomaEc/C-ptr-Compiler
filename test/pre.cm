@@ -1,0 +1,21 @@
+void main() {
+
+    bool bb = 2 < 5;
+    int b = 3;
+    int c = b * 10;
+    int a;
+    int d;
+
+    if (bb) {
+        a = b + c;
+    } else {
+        b = 7;
+        d = b + c;
+    }
+
+    int e = b + c;
+
+
+
+    return;
+}

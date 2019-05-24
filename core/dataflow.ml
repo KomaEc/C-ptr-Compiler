@@ -28,12 +28,16 @@ type 'abstract_value t =
 }
 
 type 'abstract_value result = (Procdesc.Node.id, 'abstract_value) Hashtbl.t
+
+
 (* TODO :: distinguish exit node and entry node, change the initial value to eev *)
-let do_dfa (dfa : 'abstract_value t) : 'abstract_value result = 
+let do_dfa (dfa : 'abstract_value t) : 'abstract_value result * 'abstract_value result = 
   
   let worklist : Procdesc.Node.t Queue.t = Queue.create()
 
   and res : 'abstract_value result = Hashtbl.create dfa.proc.node_num 
+
+  and res_in : 'abstract_value result = Hashtbl.create dfa.proc.node_num
 
   and fold_pred, iter_succ  = 
     match dfa.dir with 
@@ -85,10 +89,19 @@ let do_dfa (dfa : 'abstract_value t) : 'abstract_value result =
            (*print_string " are added \n"*)
     done in 
 
+  let get_res_in () = 
+    Procdesc.iter (fun node ->
+    let this_input = fold_pred 
+        (fun acc node' ->
+        acc <+> Hashtbl.find res (Procdesc.Node.get_id node')) dfa.bottom node in
+        Hashtbl.replace res_in (Procdesc.Node.get_id node) this_input) dfa.proc
+  in
+
   begin
     init ();
     run_worklist ();
-    res 
+    get_res_in ();
+    res, res_in
   end
 
 
@@ -115,7 +128,6 @@ module Make
   (X : S) : 
   sig 
     type abstract_value
-    val transfer : Procdesc.Node.t -> abstract_value -> abstract_value
     val from_func : M.func -> abstract_value t
     val string_of_result : abstract_value result -> abstract_value t -> string
   end with type abstract_value = X.abstract_value = 
@@ -123,7 +135,7 @@ struct
 
   type abstract_value = X.abstract_value
 
-  let transfer : Procdesc.Node.t -> abstract_value -> abstract_value = 
+  let transfer_for_node : Procdesc.Node.t -> abstract_value -> abstract_value = 
     fun node -> 
       let instrs = Procdesc.Node.get_instrs node in 
       if not X.is_backward then
@@ -135,15 +147,19 @@ struct
         (fun stmt trs -> 
         X.transfer stmt <-- trs) instrs (fun x -> x)
 
+  
+
   let from_func (func : M.func) : abstract_value t =
     let bottom, entry_or_exit_facts = X.gen_bot_and_entry_or_exit_facts func 
-    and proc = Procdesc.from_func func in
+    and proc = Procdesc.from_func_singleton func 
+    and transfer_table : (Procdesc.Node.id, abstract_value -> abstract_value) Hashtbl.t = Hashtbl.create 16 in 
+    Procdesc.iter (fun node -> Hashtbl.add transfer_table (Procdesc.Node.get_id node) (transfer_for_node node)) proc;
     {
       proc;
       dir = (match X.is_backward with true -> D_Backward | false -> D_Forward);
       meet = X.meet;
       equal = X.equal;
-      transfer;
+      transfer = (fun node -> Hashtbl.find transfer_table (Procdesc.Node.get_id node));
       entry_or_exit_facts;
       bottom;
     }
@@ -151,6 +167,7 @@ struct
   let string_of_result : abstract_value result -> abstract_value t -> string = fun res dfa -> 
     Procdesc.fold 
     (fun acc node -> 
+      if not (Procdesc.Node.is_internal node) then acc else
       if X.is_backward then 
         begin
           acc
@@ -172,7 +189,7 @@ end
 module LV = Make(Dfa.LiveVariable)
 
 let lv (func : M.func) : LV.abstract_value result = 
-  LV.from_func func |> do_dfa
+  LV.from_func func |> do_dfa |> fst
 
 module Anticipate = Make(Dfa.Anticipated)
 
@@ -187,5 +204,9 @@ let print_result (prog : M.prog) : unit =
   List.iter
   (fun func ->
   let ant_dfa = Anticipate.from_func func in
-  let ant_res = do_dfa ant_dfa in 
+  let ant_res = do_dfa ant_dfa |> fst in 
   print_endline (Anticipate.string_of_result ant_res ant_dfa)) prog
+
+
+
+

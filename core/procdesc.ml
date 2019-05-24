@@ -7,6 +7,7 @@ module Node = struct
 
   type id = int 
 
+  let cnt = ref 0;
 
   type t = {
     id: id;
@@ -74,6 +75,17 @@ module Node = struct
   let iter_pred : (t -> unit) -> t -> unit = 
     fun f node -> List.iter f node.pred
 
+  let make instrs loc pname =
+    incr cnt;
+    {
+      id = !cnt;
+      instrs;
+      loc;
+      pname;
+      pred = [];
+      succ = []
+    }
+(*
   let make id instrs loc pname = 
   {
     id;
@@ -82,7 +94,7 @@ module Node = struct
     pname;
     pred = [];
     succ = [];
-  }
+  } *)
 
   let string_of_node : t -> string = fun node -> 
     let res = ref ("=====Start node " ^ string_of_int node.id ^ "=====\n") in
@@ -118,8 +130,54 @@ let fold : ('acc -> Node.t -> 'acc) -> 'acc -> t -> 'acc =
   fun f acc proc -> 
     List.fold_left f acc proc.nodes
 
+(*
+let singleton_from_func (func : M.func) : t =
+  let locals = M.get_locals func 
+  and formals = M.get_formals func 
+  and instrs = Array.of_list func.func_body in
+  let convert_to_lnum () = 
+    let tbl = Hashtbl.create 16 in 
+    let offset = ref 0 in 
+    Array.iteri 
+    (fun i -> function 
+    | `Label(l) when i > 0 -> 
+      Hashtbl.add tbl l (i - !offset - 1);
+      incr offset 
+    | _ -> ()) instrs;
+    let aux = Array.make (Array.length instrs - !offset - 1) `Nop in
+    offset := 0;
+    Array.iteri
+    (fun i -> function 
+    | _ when i = 0 -> () 
+    | `Label(_) -> () 
+    | `Goto(`Label(l)) -> 
+      aux.(!offset) <- (`Goto(`Line_num(Hashtbl.find tbl l)));
+      incr offset 
+    | `If(cond, `Label(l)) -> 
+      aux.(!offset) <- (`If(cond, `Line_num(Hashtbl.find tbl l)));
+      incr offset
+    | _ as stmt -> 
+      aux.(!offset) <- stmt;
+      incr offset) instrs;
+    aux in 
+  let instrs = convert_to_lnum () in
+  let length = Array.length instrs in
+*)
 
-let from_func (func: M.func) : t = 
+let find_leader (instrs : M.stmt array) : bool array = 
+  let length = Array.length instrs in
+  let is_leader = Array.make (length + 1) false in
+  is_leader.(length) <- true;
+  Array.iteri 
+  (fun i -> function 
+    | _ when i = 0 -> is_leader.(i) <- true 
+    | `Goto(`Line_num(j)) | `If(_, `Line_num(j)) -> 
+      is_leader.(j) <- true;
+      if i < length - 1 then is_leader.(i+1) <- true
+    | _ -> ()) instrs;
+  is_leader
+
+let from_func (func: M.func) (find_leader : M.stmt array -> bool array) : t = 
   let locals = M.get_locals func 
   and formals = M.get_formals func 
   and instrs = Array.of_list func.func_body in
@@ -150,6 +208,7 @@ let from_func (func: M.func) : t =
     aux in 
   let instrs = convert_to_lnum() in
   let length = Array.length instrs in
+  (*
   let is_leader = Array.make (length + 1) false in
   is_leader.(length) <- true;
   Array.iteri 
@@ -159,6 +218,8 @@ let from_func (func: M.func) : t =
       is_leader.(j) <- true;
       if i < length - 1 then is_leader.(i+1) <- true
     | _ -> ()) instrs;
+    *)
+  let is_leader = find_leader instrs in
   let nodes_ref = ref [] 
   and id = ref 0
   and l = ref 0
@@ -169,7 +230,7 @@ let from_func (func: M.func) : t =
     if is_leader.(r) then 
     let newinstrs = Array.make (r - !l) `Nop in 
     Array.blit instrs !l newinstrs 0 (r - !l);
-    let node = Node.make !id newinstrs !l func.func_name in 
+    let node = Node.make (*!id *)newinstrs !l func.func_name in 
     Hashtbl.add tbl r (!id + 1);
     nodes_ref := node :: !nodes_ref; incr id; l := r
   done;
@@ -218,12 +279,19 @@ let from_func (func: M.func) : t =
     exit_node = exit;
   }
 
+
+let from_func_singleton instrs = 
+  from_func instrs (fun instrs -> let length = Array.length instrs in Array.make (length + 1) true)
+
+
+let from_func instrs = from_func instrs find_leader
+
 let string_of_proc : t -> string = fun procdesc -> 
   List.fold_left 
   (fun str node -> str ^ Node.string_of_node node) "" procdesc.nodes
 
 let from_prog : M.prog -> t list = 
-  List.map from_func
+  List.map from_func_singleton
 
 let string_of_t_list : t list -> string = 
   List.fold_left 

@@ -778,9 +778,9 @@ end
 module ExprHashtbl = Hashtbl.Make(Expr)
 *)
 
-module Anticipated =
-struct
 
+module DfaExpr = 
+struct 
   type expr = [
       `Bin of M.immediate * M.binop * M.immediate
     | `Rel of M.immediate * M.relop * M.immediate
@@ -802,26 +802,93 @@ struct
     fun f opt base -> match opt with
       | Some x -> f x base
       | None -> base
-  (* Sure to use finite set? 
-   * No! better use finite map! 
-   * Reasons : 1, semantics are clear in the sense of Abstract Interpretation
-   * (map variable to its related expressions
-   * 2. No need for a global expression set, which promotes composability *)
-
-
+  
+  
   module Map = FiniteMap
 
   module ExprSet = 
     Set.Make(struct let compare = compare type t = expr end)
 
   type abstract_value = (T.t, ExprSet.t) Map.t
-  (* map a temporary to a set of related expressions *)
+
+  
+  let inter : abstract_value -> abstract_value -> abstract_value = Map.fold_meet ExprSet.inter
+
+  let union : abstract_value -> abstract_value -> abstract_value = Map.fold_meet ExprSet.union
+
+  let equal : abstract_value -> abstract_value -> bool = Map.equal 
+
+  let diff : abstract_value -> abstract_value -> abstract_value = 
+    fun tbl1 tbl2 -> 
+      Map.fold
+        (fun t expr_set acc -> 
+          let expr_set' = Map.find tbl2 t in 
+            Map.replace t (ExprSet.diff expr_set expr_set') acc) tbl1 tbl1
+
+  let kill : T.t -> abstract_value -> abstract_value = 
+    fun t tbl -> 
+      let expr_set = Map.find tbl t in
+      Map.filter_map_inplace
+        (fun _ expr_set' -> Some (ExprSet.diff expr_set' expr_set)) tbl;
+      tbl
+
+  let gen : expr -> abstract_value -> abstract_value = 
+    fun e tbl -> 
+      List.fold_left
+        (fun acc t -> 
+          let eset = Map.find acc t in
+          Map.replace t (ExprSet.add e eset) acc) tbl (temps_in_expr e)
+
+  let e_kill : M.stmt -> abstract_value -> abstract_value = function
+    | `Assign(var, _) -> 
+      let t_list = M.temps_in_var var in 
+      fun v ->
+      List.fold_right kill t_list v
+    | _ -> fun v -> v
+
+  let e_gen : M.stmt -> abstract_value -> abstract_value = function
+    | `Assign(_, rvalue) -> 
+      fold_right_opt gen (rvalue_to_expr_opt rvalue) 
+    | _ -> fun v -> v
+
+
+  let gen_all_and_empty : M.func -> abstract_value * abstract_value = fun func ->
+    let locals : T.t list = 
+      List.fold_left 
+      (fun acc (`Temp_decl(`Temp(t), _)) ->
+      t :: acc) [] func.local_decls
+      |> fun base ->
+      List.fold_left 
+      (fun acc (`Identity(`Temp(t), _)) -> 
+      t :: acc) base func.identities in
+    let empty =
+      locals |> List.map (fun y -> (y, ExprSet.empty)) |> Map.mkempty in
+    let all = 
+      List.fold_left
+        (fun acc -> function
+          | `Assign(_, `Expr(`Bin(_) as e)) -> 
+            List.fold_left (fun acc' t -> 
+                              let eset = Map.find acc' t in
+                              Map.replace t (ExprSet.add e eset) acc') acc (temps_in_expr e)
+          | `Assign(_, `Expr(`Rel(_) as e)) -> 
+            List.fold_left (fun acc' t -> 
+                              let eset = Map.find acc' t in
+                              Map.replace t (ExprSet.add e eset) acc') acc (temps_in_expr e)
+          | _ -> acc) empty func.func_body in
+    (all, empty)  
+
+
+
+end
+
+module Anticipated =
+struct
+
+  include DfaExpr
 
   let is_backward = true
 
-  let meet : abstract_value -> abstract_value -> abstract_value = Map.fold_meet ExprSet.inter
-
-  let equal : abstract_value -> abstract_value -> bool = Map.equal
+  let meet : abstract_value -> abstract_value -> abstract_value = inter
 
   let gen_bot_and_entry_or_exit_facts (func : M.func) : abstract_value * abstract_value = 
     let locals : T.t list = 
@@ -847,21 +914,6 @@ struct
                               Map.replace t (ExprSet.add e eset) acc') acc (temps_in_expr e)
           | _ -> acc) top func.func_body in
     (bot, top) 
-
-
-  let kill : T.t -> abstract_value -> abstract_value = 
-    fun t tbl -> 
-      let expr_set = Map.find tbl t in
-      Map.filter_map_inplace
-        (fun _ expr_set' -> Some (ExprSet.diff expr_set' expr_set)) tbl;
-      tbl
-
-  let gen : expr -> abstract_value -> abstract_value = 
-    fun e tbl -> 
-      List.fold_left
-        (fun acc t -> 
-          let eset = Map.find acc t in
-          Map.replace t (ExprSet.add e eset) acc) tbl (temps_in_expr e)
 
   (* TODO : use information is only partially collected!!! *)
   let transfer : M.stmt -> abstract_value -> abstract_value = function
