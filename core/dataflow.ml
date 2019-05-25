@@ -151,7 +151,7 @@ struct
 
   let from_func (func : M.func) : abstract_value t =
     let bottom, entry_or_exit_facts = X.gen_bot_and_entry_or_exit_facts func 
-    and proc = Procdesc.from_func_singleton func 
+    and proc = Procdesc.from_func func 
     and transfer_table : (Procdesc.Node.id, abstract_value -> abstract_value) Hashtbl.t = Hashtbl.create 16 in 
     Procdesc.iter (fun node -> Hashtbl.add transfer_table (Procdesc.Node.get_id node) (transfer_for_node node)) proc;
     {

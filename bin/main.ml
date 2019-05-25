@@ -14,6 +14,7 @@ module Dfa = Cm_core.Dfa
 module T = Cm_core.Translate
 module Proc = Cm_core.Procdesc
 module Dataflow = Cm_core.Dataflow
+module Pre = Cm_core.Pre
 
 let print_position outx lexbuf = 
   let pos = lexbuf.lex_curr_p in 
@@ -91,6 +92,7 @@ let () =
 
           print_newline();
           Dataflow.print_result prog;
+          Pre.Test.from_prog prog;
           close_in inx
           )
   | _ -> fprintf stderr "Too many arguments! Expected 1\n"; exit(0)
