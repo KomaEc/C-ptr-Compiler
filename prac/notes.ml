@@ -140,3 +140,67 @@ type ('a, 'n) etree =
 
 (* When pattern matching, the Refl brings local type refinement *)
   
+
+
+
+module type MONAD = 
+sig 
+  type 'a t
+  val return : 'a -> 'a t (* represent trivial computation *)
+  val (>>=) : 'a t -> ('a -> 'b t) -> 'b t
+end
+
+(* the type 'a t represent some computation that 
+ * performs some effects then returns a result 
+ * off type 'a *)
+
+(* Three monad laws :: 
+ * 1. return v >>= k === k v 
+ * 2. m >>= return === m   -- return is kind of right unit of the operator >>=
+ * 3. (m >>= f) >>= g === m >>= (fun x -> f x >>= g)  -- >>= is associative!  *)
+
+
+(* reading and updating a single reference cell *)
+module type STATE = 
+sig
+  type state (* denoting the type of the cell *)
+  type 'a t
+  module Monad : MONAD with type 'a t = 'a t
+  val get : state t  (* a computation without parameters that return a value of type state *)
+  val put : state -> unit t
+  val runState : 'a t -> state -> state * 'a (* run computation *)
+end
+
+
+
+
+module State (S : sig type t end) : STATE with type state = S.t =  
+struct
+  type state = S.t
+  type 'a t = state -> state * 'a 
+  module Monad : MONAD with type 'a t = 'a t = 
+  struct
+    type 'a t = state -> state * 'a
+    let return v s = (s, v)
+    let (>>=) m k s = let (s', v) = m s in k v s'
+  end
+  let get s = (s, s)
+  let put s = fun _ -> (s, ())
+  let runState m init = m init
+end
+
+type 'a tree = 
+  | Empty : 'a tree 
+  | Tree : 'a tree * 'a * 'a tree -> 'a tree
+
+module Monad_of_state(S : STATE) : MONAD with type 'a t = 'a S.t = S.Monad
+
+module IState = State(struct type t = int end)
+
+let fresh_name : string IState.t = (* fresh_name is a computation that returns a string *)
+  let open IState in 
+  let open Monad in 
+  get >>= fun i -> 
+  put (i + 1) >>= fun () -> 
+  return (Printf.sprintf "x%d" i)
+

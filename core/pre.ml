@@ -60,7 +60,7 @@ let augment (proc : Procdesc.t) : Procdesc.t =
         let new_ones = Set.elements !new_nodes_ref in
         {
           proc with 
-          nodes = new_ones @ proc.nodes;
+          nodes = proc.nodes @ new_ones;
           node_num =  proc.node_num + List.length new_ones;
         }
 
