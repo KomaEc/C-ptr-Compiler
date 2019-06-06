@@ -44,7 +44,7 @@ let do_dfa (dfa : 'abstract_value t) : 'abstract_value result * 'abstract_value 
       | D_Forward -> Procdesc.Node.fold_pred, Procdesc.Node.iter_succ 
       | D_Backward -> Procdesc.Node.fold_succ, Procdesc.Node.iter_pred
 
-  and entry, is_entry = 
+  and entry, (*is_entry*)_ = 
     match dfa.dir with 
       | D_Forward -> dfa.proc.start_node, Procdesc.Node.is_entry
       | D_Backward -> dfa.proc.exit_node, Procdesc.Node.is_exit
@@ -60,7 +60,7 @@ let do_dfa (dfa : 'abstract_value t) : 'abstract_value result * 'abstract_value 
       (* We should carefully add only internals node and exit nodes
        * otherwise, when doing must kind dfa, the fold_pred below 
        * will have wrong semantics *)
-        if not (is_entry node) then Queue.add node worklist;
+        if (*not (is_entry node)*) Procdesc.Node.is_internal node then Queue.add node worklist;
         Hashtbl.add res (Procdesc.Node.get_id node) dfa.bottom) dfa.proc;
       Hashtbl.replace res (Procdesc.Node.get_id entry) dfa.entry_or_exit_facts
     end
@@ -198,7 +198,7 @@ let print_result (prog : M.prog) : unit =
   List.iter
   (fun func ->
   let lv_dfa = LV.from_func func in
-  let lv_res = do_dfa lv_dfa in 
+  let lv_res,_ = do_dfa lv_dfa in 
   print_endline (LV.string_of_result lv_res lv_dfa)) prog
   *)
   List.iter

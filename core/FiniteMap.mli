@@ -12,6 +12,8 @@ val to_alist : ('a, 'value) t -> ('a * 'value) list
 
 val equal : ('a, 'value) t -> ('a, 'value) t -> bool
 
+val copy : ('a, 'value) t -> ('a, 'value) t
+
 val iter : ('a -> 'value -> unit) -> ('a, 'value) t -> unit
 
 val fold : ('a -> 'value -> 'acc -> 'acc) -> ('a, 'value) t -> 'acc -> 'acc

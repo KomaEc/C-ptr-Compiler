@@ -288,7 +288,8 @@ let from_func instrs = from_func instrs find_leader
 
 let string_of_proc : t -> string = fun procdesc -> 
   List.fold_left 
-  (fun str node -> str ^ Node.string_of_node node) "" procdesc.nodes
+  (fun str node -> if Node.is_internal node then str ^ Node.string_of_node node else str) "" procdesc.nodes
+  ^ "\n"
 
 let from_prog : M.prog -> t list = 
   List.map from_func_singleton

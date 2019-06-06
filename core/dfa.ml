@@ -811,6 +811,20 @@ struct
 
   type abstract_value = (T.t, ExprSet.t) Map.t
 
+  type expr_set_at_pp = abstract_value
+
+  let collapse' : abstract_value -> ExprSet.t = fun value -> 
+    Map.fold (fun _ -> ExprSet.union) value ExprSet.empty
+
+  let collapse = let open Cm_util.Util in ExprSet.elements <-- collapse'
+
+  let occur : expr -> abstract_value -> bool = 
+    fun expr value -> 
+      match temps_in_expr expr with 
+        | [] -> false
+        | t::_ -> let expr_set = Map.find value t in 
+                    ExprSet.exists ((=) expr) expr_set
+
   
   let inter : abstract_value -> abstract_value -> abstract_value = Map.fold_meet ExprSet.inter
 
@@ -818,12 +832,15 @@ struct
 
   let equal : abstract_value -> abstract_value -> bool = Map.equal 
 
+  let diff : abstract_value -> abstract_value -> abstract_value = Map.fold_meet ExprSet.diff
+(*
   let diff : abstract_value -> abstract_value -> abstract_value = 
     fun tbl1 tbl2 -> 
       Map.fold
         (fun t expr_set acc -> 
           let expr_set' = Map.find tbl2 t in 
-            Map.replace t (ExprSet.diff expr_set expr_set') acc) tbl1 tbl1
+            Map.replace t (ExprSet.diff expr_set expr_set') acc) tbl1 tbl1  *)
+
 
   let kill : T.t -> abstract_value -> abstract_value = 
     fun t tbl -> 
@@ -842,8 +859,7 @@ struct
   let e_kill : M.stmt -> abstract_value -> abstract_value = function
     | `Assign(var, _) -> 
       let t_list = M.temps_in_var var in 
-      fun v ->
-      List.fold_right kill t_list v
+      List.fold_right kill t_list
     | _ -> fun v -> v
 
   let e_gen : M.stmt -> abstract_value -> abstract_value = function
@@ -876,6 +892,17 @@ struct
                               Map.replace t (ExprSet.add e eset) acc') acc (temps_in_expr e)
           | _ -> acc) empty func.func_body in
     (all, empty)  
+
+
+
+    let string_of_result : abstract_value -> string  = 
+    fun tbl -> 
+      Map.to_alist tbl
+      |> List.map snd
+      |> List.fold_left 
+          (fun acc eset -> ExprSet.to_seq eset |> Seq.fold_left (fun acc x -> x :: acc) acc) []
+      |> List.sort_uniq compare
+      |> P.string_of_list string_of_expr
 
 
 

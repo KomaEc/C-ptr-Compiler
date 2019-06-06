@@ -43,6 +43,9 @@ let equal tbl1 tbl2 = equal' tbl1 tbl2 && equal' tbl2 tbl1
 let iter : ('a -> 'value -> unit) -> ('a, 'value) t -> unit = 
   H.iter
 
+let copy : ('a, 'value) t -> ('a, 'value) t =
+  H.copy
+
 
 let fold : ('a -> 'value -> 'acc -> 'acc) -> ('a, 'value) t -> 'acc -> 'acc = 
   H.fold

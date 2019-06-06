@@ -104,6 +104,131 @@ and func =
 (* TODO : add glb_vars info and cls info! *)
 and prog = func list
 
+let rvalue_to_var : rvalue -> var = function 
+  | `Temp(t) -> `Temp(t) 
+  | `Array_ref(x) -> `Array_ref(x)
+  | `Instance_field_ref(x) -> `Instance_field_ref(x)
+  | `Static_field_ref(x) -> `Static_field_ref(x) 
+  | _ -> failwith "impossible"
+
+module type MIMPLE_VISITOR = 
+sig
+  class visitor : 
+  object ('self_type)
+
+    method stmt : stmt -> (stmt * 'self_type)
+    method expr : expr -> (expr * 'self_type)
+    method rvalue : rvalue -> (rvalue * 'self_type)
+    method immediate : immediate -> (immediate * 'self_type)
+    method var : var -> (var * 'self_type)
+    method label : label -> (label * 'self_type)
+    method target : target -> (target * 'self_type)
+    method condition : condition -> (condition * 'self_type)
+    method const : const -> (const * 'self_type)
+    method temp : Temp.t -> (Temp.t * 'self_type)
+  end
+
+end
+
+module Transform : MIMPLE_VISITOR  =
+struct
+  class visitor = 
+  object ((o : 'self_type))
+  method stmt : stmt -> (stmt * 'self_type) = function 
+    | `Assign(v, rv) -> 
+      let (v', o) = o#var v in 
+      let (rv', o) = o#rvalue rv in 
+      `Assign(v', rv'), o
+    | `Label(l) -> 
+      let (l', o) = o#label l in 
+      `Label(l'), o
+    | `Goto(t) -> 
+      let (t', o) = o#target t in 
+      `Goto(t'), o 
+    | `If(cond, t) -> 
+      let (cond', o) = o#condition cond in 
+      let (t', o) = o#target t in 
+      `If(cond', t'), o 
+    | `Static_invoke(msig, imm_list) -> 
+      let (imm_list_rev, o) = 
+        List.fold_left  
+          (fun (acc, o) imm -> 
+            let (imm', o) = o#immediate imm in
+            imm'::acc, o) ([], o) imm_list in 
+      `Static_invoke(msig, List.rev imm_list_rev), o
+    | `Ret(imm) -> 
+      let (imm', o) = o#immediate imm in 
+      `Ret(imm'), o 
+    | _ as s -> s, o
+
+  method rvalue : rvalue -> (rvalue * 'self_type) = function 
+    | `Temp(t) -> 
+      let (t', o) = o#temp t in 
+      `Temp(t'), o
+    | `Const(c) -> 
+      let (c', o) = o#const c in 
+      `Const(c'), o
+    | `Expr(expr) -> 
+      let (expr', o) = o#expr expr in 
+      `Expr(expr'), o
+    | `Array_ref(imm1, imm2) ->
+      let (imm1', o) = o#immediate imm1 in 
+      let (imm2', o) = o#immediate imm2 in 
+      `Array_ref(imm1', imm2'), o
+    | `Instance_field_ref(imm, fsig) -> 
+      let (imm', o) = o#immediate imm in 
+      `Instance_field_ref(imm', fsig), o
+    | `Static_field_ref(_) as s ->
+      s, o 
+
+  method var : var -> (var * 'self_type) = fun v -> 
+    let (rv, o) = o#rvalue (v :> rvalue) in
+    let v' = rvalue_to_var rv in 
+    v', o
+  
+  method target : target -> (target * 'self_type) = fun t -> t, o
+  method label : label -> (label * 'self_type) = fun l -> l, o
+  method immediate : immediate -> (immediate * 'self_type) = fun imm -> imm, o
+  method condition : condition -> (condition * 'self_type) = function 
+    | `Temp(t) -> 
+      let (t', o) = o#temp t in 
+      `Temp(t'), o 
+    | `Rel(imm1, rop, imm2) -> 
+      let (imm1', o) = o#immediate imm1 in 
+      let (imm2', o) = o#immediate imm2 in 
+      `Rel(imm1', rop, imm2'), o 
+  method temp : Temp.t -> (Temp.t * 'self_type) = fun t -> t, o
+  method const : const -> (const * 'self_type) = fun c -> c, o
+  method expr : expr -> (expr * 'self_type) = function 
+    | `Bin(imm1, bop, imm2) -> 
+      let (imm1', o) = o#immediate imm1 in 
+      let (imm2', o) = o#immediate imm2 in 
+      `Bin(imm1', bop, imm2'), o
+    | `Rel(imm1, rop, imm2) -> 
+      let (imm1', o) = o#immediate imm1 in 
+      let (imm2', o) = o#immediate imm2 in 
+      `Rel(imm1', rop, imm2'), o 
+    | `Static_invoke(msig, imm_list) -> 
+      let (imm_list_rev, o) = 
+        List.fold_left  
+          (fun (acc, o) imm -> 
+            let (imm', o) = o#immediate imm in
+            imm'::acc, o) ([], o) imm_list in 
+      `Static_invoke(msig, List.rev imm_list_rev), o
+    | `New_expr(_) as e -> e, o
+    | `New_array_expr(ty, imm) ->
+      let (imm', o) = o#immediate imm in 
+      `New_array_expr(ty, imm'), o    
+
+  end
+end
+
+
+
+
+
+
+
 let get_locals (func : func) : (Temp.t * ty) list = 
   List.map (fun (`Temp_decl(`Temp(t), ty)) -> (t, ty)) func.local_decls
 
