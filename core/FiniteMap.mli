@@ -19,3 +19,5 @@ val iter : ('a -> 'value -> unit) -> ('a, 'value) t -> unit
 val fold : ('a -> 'value -> 'acc -> 'acc) -> ('a, 'value) t -> 'acc -> 'acc
 
 val filter_map_inplace : ('a -> 'value -> 'value option) -> ('a, 'value) t -> unit
+
+val fold_equal : ('v -> 'v -> bool) -> ('a, 'v) t -> ('a, 'v) t -> bool

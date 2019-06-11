@@ -167,7 +167,7 @@ struct
 
   let make_step3_transfer : expr_set_at_pp Dataflow.result -> Procdesc.Node.t -> expr_set_at_pp -> expr_set_at_pp = 
     fun earliest node value -> 
-      X.union (Hashtbl.find earliest (Procdesc.Node.get_id node)) value |> (lift `Is_Forward X.e_kill) node
+      X.union (Hashtbl.find earliest (Procdesc.Node.get_id node)) value |> (lift `Is_Forward X.e_gen) node
 
   let make_step4_transfer : expr_set_at_pp Dataflow.result -> Procdesc.Node.t -> expr_set_at_pp -> expr_set_at_pp = 
     fun latest node value -> 
@@ -197,8 +197,8 @@ struct
         bottom = (match may_must with `May -> proc_info.empty | `Must -> proc_info.all);
       }
 
-  let do_dfa (dfa : 'a Dataflow.t) : 'a Dataflow.result * 'a Dataflow.result = 
-    let (res1, res2) = Dataflow.do_dfa dfa in 
+  let do_dfa ?verbose ?string_of_result (dfa : 'a Dataflow.t) : 'a Dataflow.result * 'a Dataflow.result = 
+    let (res1, res2) = Dataflow.do_dfa ?verbose ?string_of_result dfa in 
       match dfa.dir with 
         | D_Forward -> (res2, res1)
         | D_Backward -> (res1, res2)
@@ -287,13 +287,23 @@ struct
 
     let () = print_endline ("*****************************earliest************************\n\n" ^ earliest_string ^ "\n***************************end***************************\n") in
 
-    let step3_transfer = make_step3_transfer earliest in
+
+    let post_tranfer node value = 
+      X.diff (X.union value (Hashtbl.find earliest (Procdesc.Node.get_id node))) (Hashtbl.find e_use (Procdesc.Node.get_id node))
+    in
+
+    let _ = make_step3_transfer earliest in
+    let step3_transfer = post_tranfer in
     let step3_dfa = config_dfa proc_info `Is_Forward `Must step3_transfer in 
-    let (postponable_in, _) = do_dfa step3_dfa in
+    let (postponable_in, postponable_out) = do_dfa step3_dfa in
 
     let postponable_in_string = string_of_result true postponable_in proc_info in 
 
-    let () = print_endline ("*****************************postponable************************\n\n" ^ postponable_in_string ^ "\n***************************end***************************\n") in
+    let () = print_endline ("*****************************postponable_in************************\n\n" ^ postponable_in_string ^ "\n***************************end***************************\n") in
+
+    let postponable_out_string = string_of_result false postponable_out proc_info in 
+
+    let () = print_endline ("*****************************postponable_out************************\n\n" ^ postponable_out_string ^ "\n***************************end***************************\n") in
     
 
     let fold_succ_inter_inner_union res1 res2 = 
@@ -335,15 +345,25 @@ struct
 
     let () = print_endline ("*****************************latest************************\n\n" ^ latest_string ^ "\n***************************end***************************\n") in
 
+
+    let use_transfer node value = 
+      X.diff (X.union value (Hashtbl.find e_use (Procdesc.Node.get_id node))) (Hashtbl.find latest (Procdesc.Node.get_id node))
+    in
     
-    let step4_transfer = make_step4_transfer latest in
+    let _ = make_step4_transfer latest in
+    let step4_transfer = use_transfer in
     let step4_dfa = config_dfa proc_info `Is_Backward `May step4_transfer in
-    let (_, use_out) = do_dfa step4_dfa in
+
+    let (use_in, use_out) = do_dfa (*~verbose:() ~string_of_result:X.string_of_result*) step4_dfa in
 
 
     let use_out_string = string_of_result false use_out proc_info in 
 
+    let use_in_string = string_of_result true use_in proc_info in
+
     let () = print_endline ("*****************************use_out************************\n\n" ^ use_out_string ^ "\n***************************end***************************\n") in
+
+    let () = print_endline ("*****************************use_in************************\n\n" ^ use_in_string ^ "\n***************************end***************************\n") in
 
 
 

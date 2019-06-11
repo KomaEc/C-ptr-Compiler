@@ -31,7 +31,7 @@ type 'abstract_value result = (Procdesc.Node.id, 'abstract_value) Hashtbl.t
 
 
 (* TODO :: distinguish exit node and entry node, change the initial value to eev *)
-let do_dfa (dfa : 'abstract_value t) : 'abstract_value result * 'abstract_value result = 
+let do_dfa ?verbose ?string_of_result (dfa : 'abstract_value t)  : 'abstract_value result * 'abstract_value result = 
   
   let worklist : Procdesc.Node.t Queue.t = Queue.create()
 
@@ -68,16 +68,33 @@ let do_dfa (dfa : 'abstract_value t) : 'abstract_value result * 'abstract_value 
   and run_worklist () = 
     while not (Queue.is_empty worklist) do 
       let node = Queue.pop worklist in 
+      begin 
+        match verbose with 
+          | None -> ()
+          | Some _ -> print_endline ("node " ^ (Procdesc.Node.get_id node |> string_of_int) ^ " is picked")
+      end;
      (* print_int (Procdesc.Node.get_id node);
       print_newline (); (* ??? *) *)
       let this_input = 
         fold_pred 
         (fun acc node' ->
         acc <+> Hashtbl.find res (Procdesc.Node.get_id node')) dfa.bottom node in 
-      let new_output = dfa.transfer node this_input in 
-      match new_output <=> Hashtbl.find res (Procdesc.Node.get_id node) with 
+      let new_output = dfa.transfer node this_input 
+      and old_output = Hashtbl.find res (Procdesc.Node.get_id node) in
+      match new_output <=> old_output with 
         | true -> () 
         | false -> 
+          begin 
+          match verbose with 
+            | None -> ()
+            | Some _ -> 
+              match string_of_result with 
+                | None -> assert false
+                | Some f -> 
+                  print_endline ("old_output: " ^ f old_output); print_endline ("new_output: " ^ f new_output);
+                  print_endline ("And you tell me, are they equal? :: " ^ string_of_bool (new_output <=> old_output));
+                  print_newline();
+          end;
           Hashtbl.replace res (Procdesc.Node.get_id node) new_output;
           (*print_string "During processing node : ";
            print_int (Procdesc.Node.get_id node);

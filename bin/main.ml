@@ -79,8 +79,14 @@ let () =
           print_endline "\nTranslating to Mimple...\n";
           Mimple.print_prog prog;
           print_newline ();
+          
           let procs = Proc.from_prog prog in 
+
+          print_endline "hello";
+
           print_endline (Proc.string_of_t_list procs);
+
+  
           let prog1 = T.get_mimple1() in 
           Mimple.print_prog prog1;
           print_newline();

@@ -65,7 +65,8 @@ let simplify_func : func -> func = fun func ->
     with func_body = func.func_body
                     |> simplify_func_body
 
-                    |> simple_jump_peephole }
+                    (*|> simple_jump_peephole*) }
+                    (* buggy!! consider if (..) {..} else {} *)
 
 
 

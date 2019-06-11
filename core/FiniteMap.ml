@@ -35,9 +35,17 @@ let equal' : ('a, 'value) t -> ('a, 'value) t -> bool =
   H.fold 
   (fun x v acc -> 
   let v' = H.find tbl2 x in 
-  acc && (v = v')) tbl1 true
+  acc && (v = v')) tbl1 true (* Notice polymorphic equal !!!!!!!!!!!!!!!!!!! For example, it can't be used to play with ExprSet*)
 
 let equal tbl1 tbl2 = equal' tbl1 tbl2 && equal' tbl2 tbl1
+
+
+let fold_equal : ('v -> 'v -> bool) -> ('a, 'v) t -> ('a, 'v) t -> bool = fun (=) ->
+  fun tbl1 tbl2 -> 
+  H.fold 
+  (fun x v acc -> 
+  let v' = H.find tbl2 x in 
+  acc && (v = v')) tbl1 true
 
 
 let iter : ('a -> 'value -> unit) -> ('a, 'value) t -> unit = 

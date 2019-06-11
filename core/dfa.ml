@@ -825,12 +825,16 @@ struct
         | t::_ -> let expr_set = Map.find value t in 
                     ExprSet.exists ((=) expr) expr_set
 
+  let expr_set_equal : ExprSet.t -> ExprSet.t -> bool = fun set1 set2 ->
+    (ExprSet.diff set1 set2) = ExprSet.empty && (ExprSet.diff set2 set1) = ExprSet.empty
+
   
   let inter : abstract_value -> abstract_value -> abstract_value = Map.fold_meet ExprSet.inter
 
   let union : abstract_value -> abstract_value -> abstract_value = Map.fold_meet ExprSet.union
 
-  let equal : abstract_value -> abstract_value -> bool = Map.equal 
+  let equal : abstract_value -> abstract_value -> bool = (*Map.equal *)Map.fold_equal expr_set_equal
+
 
   let diff : abstract_value -> abstract_value -> abstract_value = Map.fold_meet ExprSet.diff
 (*
@@ -895,7 +899,7 @@ struct
 
 
 
-    let string_of_result : abstract_value -> string  = 
+  let string_of_result : abstract_value -> string  = 
     fun tbl -> 
       Map.to_alist tbl
       |> List.map snd
@@ -903,6 +907,16 @@ struct
           (fun acc eset -> ExprSet.to_seq eset |> Seq.fold_left (fun acc x -> x :: acc) acc) []
       |> List.sort_uniq compare
       |> P.string_of_list string_of_expr
+(*
+  let string_of_result : abstract_value -> string = 
+    let string_of_value (t, expr_set) =   
+      if expr_set = ExprSet.empty then T.string_of_temp t ^ " : " ^ "empty" else
+      let expr_string = ExprSet.fold (fun expr acc -> string_of_expr expr ^ " " ^ acc) expr_set "" in
+      T.string_of_temp t ^ " : " ^ expr_string in
+    fun tbl -> 
+      Map.to_alist tbl 
+      |> P.string_of_list string_of_value 
+      *)
 
 
 

@@ -1,21 +1,22 @@
 void main() {
 
-    bool bb = 2 < 5;
+    int a;
     int b = 3;
     int c = b * 10;
-    int a;
+    bool x = false;
     int d;
 
-    if (bb) {
+    if (x) {
         a = b + c;
     } else {
-        b = 7;
-        d = b + c;
+        c = 2;
     }
 
-    int e = b + c;
+    d = b + c;
 
-
+    while (b + d < 0) {
+        int e = b + c;
+    }
 
     return;
 }
