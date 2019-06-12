@@ -14,7 +14,7 @@ void main() {
 
     d = b + c;
 
-    while (b + d < 0) {
+    while (1 > 0) {
         int e = b + c;
     }
 

@@ -82,11 +82,10 @@ let () =
           
           let procs = Proc.from_prog prog in 
 
-          print_endline "hello";
 
           print_endline (Proc.string_of_t_list procs);
 
-  
+(*
           let prog1 = T.get_mimple1() in 
           Mimple.print_prog prog1;
           print_newline();
@@ -98,7 +97,7 @@ let () =
 
           print_newline();
           Dataflow.print_result prog;
-          Pre.Test.from_prog prog;
+          Pre.Test.from_prog prog; *)
           close_in inx
           )
   | _ -> fprintf stderr "Too many arguments! Expected 1\n"; exit(0)

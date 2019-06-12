@@ -130,6 +130,58 @@ let fold : ('acc -> Node.t -> 'acc) -> 'acc -> t -> 'acc =
   fun f acc proc -> 
     List.fold_left f acc proc.nodes
 
+
+
+module type PROC_FOLDER = 
+sig
+  class ['acc] visitor :
+  object('self)
+
+    method proc : (Node.t -> 'acc -> 'acc) -> t -> 'acc -> 'acc * 'self
+    method node : (Node.t -> 'acc -> 'acc) -> Node.t -> 'acc -> 'acc * 'self
+  end
+end
+
+module IntSet = Set.Make(struct type t = int let compare = compare end)
+
+module Fold_preorder : PROC_FOLDER = 
+struct 
+  class ['acc] visitor = 
+  object((o : 'self))
+
+    val checked : IntSet.t = IntSet.empty
+    
+    method node : (Node.t -> 'acc -> 'acc) -> Node.t -> 'acc -> 'acc * 'self = 
+      fun f node acc -> 
+        let acc' = f node acc 
+        and checked' = IntSet.add (Node.get_id node) checked in
+        Node.fold_succ
+          (fun (acc''', o'') node' -> o''#node f node' acc''')
+            (acc', {<checked = checked'>}) node
+
+    method proc : (Node.t -> 'acc -> 'acc) -> t -> 'acc -> 'acc * 'self = 
+      fun f proc acc -> 
+        o#node f proc.start_node acc
+
+  end
+end
+
+let fold_preorder f proc acc = 
+  let visitor = new Fold_preorder.visitor in
+  visitor#proc f proc acc
+  |> fst
+
+let layout (proc : t) = 
+  fold_preorder 
+    (fun node acc -> if Node.is_internal node then (Node.get_id node) :: acc else acc) 
+      proc []
+  |> List.rev
+
+
+
+
+    
+
 (*
 let singleton_from_func (func : M.func) : t =
   let locals = M.get_locals func 
@@ -239,18 +291,21 @@ let from_func (func: M.func) (find_leader : M.stmt array -> bool array) : t =
   let length_of_nodes = List.length nodes in
   let open Node in
   Array.iteri (fun i node -> 
-             match node.instrs.(Array.length node.instrs - 1) with 
+             let lst_idx = Array.length node.instrs - 1 in
+             match node.instrs.(lst_idx) with 
                | `Goto(`Line_num(j)) -> 
                  let id' = Hashtbl.find tbl j in
                  node.succ <- [nodes_array.(id')];
                  nodes_array.(id').pred <- node :: nodes_array.(id').pred; 
-               | `If(_, `Line_num(j)) -> 
+                 node.instrs.(lst_idx) <- `Goto(`Line_num(id'+1))
+               | `If(c, `Line_num(j)) -> 
                  let id' = Hashtbl.find tbl j in
                  node.succ <- [nodes_array.(id')];
                  nodes_array.(id').pred <- node :: nodes_array.(id').pred; 
                  if i < length_of_nodes - 1 then 
                  (node.succ <- nodes_array.(i+1) :: node.succ;
-                 nodes_array.(i+1).pred <- node :: nodes_array.(i+1).pred)
+                 nodes_array.(i+1).pred <- node :: nodes_array.(i+1).pred);
+                 node.instrs.(lst_idx) <- `If(c, `Line_num(id'+1))
                | _ -> 
                  if i < length_of_nodes - 1 then 
                  (node.succ <- nodes_array.(i+1) :: node.succ;
@@ -278,6 +333,8 @@ let from_func (func: M.func) (find_leader : M.stmt array -> bool array) : t =
     start_node = entry;
     exit_node = exit;
   }
+
+
 
 
 let from_func_singleton instrs = 
