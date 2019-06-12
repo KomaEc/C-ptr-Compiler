@@ -142,10 +142,9 @@ sig
   end
 end
 
-module IntSet = Set.Make(struct type t = int let compare = compare end)
-
 module Fold_preorder : PROC_FOLDER = 
 struct 
+  module IntSet = Set.Make(struct type t = int let compare = compare end)
   class ['acc] visitor = 
   object((o : 'self))
 
