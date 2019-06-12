@@ -145,6 +145,7 @@ end
 module Fold_preorder : PROC_FOLDER = 
 struct 
   module IntSet = Set.Make(struct type t = int let compare = compare end)
+  let mem node set = let id = Node.get_id node in IntSet.mem id set
   class ['acc] visitor = 
   object((o : 'self))
 
@@ -152,10 +153,11 @@ struct
     
     method node : (Node.t -> 'acc -> 'acc) -> Node.t -> 'acc -> 'acc * 'self = 
       fun f node acc -> 
+        let id = Node.get_id node in
         let acc' = f node acc 
-        and checked' = IntSet.add (Node.get_id node) checked in
+        and checked' = IntSet.add id checked in
         Node.fold_succ
-          (fun (acc''', o'') node' -> o''#node f node' acc''')
+          (fun ((acc''', o'') as prev) node' -> if mem node' checked then prev else o''#node f node' acc''')
             (acc', {<checked = checked'>}) node
 
     method proc : (Node.t -> 'acc -> 'acc) -> t -> 'acc -> 'acc * 'self = 
@@ -175,6 +177,51 @@ let layout (proc : t) =
     (fun node acc -> if Node.is_internal node then (Node.get_id node) :: acc else acc) 
       proc []
   |> List.rev
+
+(*
+ let test (procs : t list) = 
+  let s = 
+    List.fold_left
+      (fun acc proc -> 
+        acc ^ (P.string_of_list string_of_int (layout proc)) ^ "\n") "" procs in 
+  print_endline s
+
+*)
+
+module BlockNum2LNum = 
+struct 
+  class visitor id2lnum = 
+  object ((o : 'self_type))
+  inherit M.Transform.visitor
+  method! target : M.target -> (M.target * 'self_type) = function 
+    | `Line_num(id) -> 
+      let lnum = Hashtbl.find id2lnum id in 
+      `Line_num(lnum), o
+    | _ -> assert false
+  end
+end
+
+let recover (proc : t) : M.stmt list = 
+  let order = layout proc 
+  and id2node = Hashtbl.create 16 
+  and id2lnum = Hashtbl.create 16 in 
+  let () = iter (fun node -> Hashtbl.add id2node (Node.get_id node) node) proc
+  and () = List.iteri (fun i idx -> Hashtbl.add id2lnum idx i) order 
+  and visitor = new BlockNum2LNum.visitor(id2lnum) in
+  List.map (fun id -> Hashtbl.find id2node id) order 
+  |> List.fold_left (fun acc node -> 
+                    Node.get_instrs node 
+                    |> Array.to_list 
+                    |> List.map visitor#stmt
+                    |> List.map fst
+                    |> (@) acc) []
+
+
+let test (stmt_list : M.stmt list) =
+  List.iteri
+    (fun i stmt -> 
+      print_endline ("line " ^ (string_of_int i) ^ M.string_of_stmt stmt)) stmt_list
+
 
 
 
