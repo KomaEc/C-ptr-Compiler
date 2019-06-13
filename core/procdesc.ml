@@ -150,7 +150,6 @@ struct
   object((o : 'self))
 
     val checked : IntSet.t = IntSet.empty
-    
     method node : (Node.t -> 'acc -> 'acc) -> Node.t -> 'acc -> 'acc * 'self = 
       fun f node acc -> 
         let id = Node.get_id node in
@@ -159,7 +158,32 @@ struct
         Node.fold_succ
           (fun ((acc''', o'') as prev) node' -> if mem node' checked then prev else o''#node f node' acc''')
             (acc', {<checked = checked'>}) node
+    method proc : (Node.t -> 'acc -> 'acc) -> t -> 'acc -> 'acc * 'self = 
+      fun f proc acc -> 
+        o#node f proc.start_node acc
 
+  end
+end
+
+module Fold_bfs =
+struct
+  module IntSet = Set.Make(struct type t = int let compare = compare end)
+  let mem node set = let id = Node.get_id node in IntSet.mem id set
+  let add node set = let id = Node.get_id node in IntSet.add id set
+  class ['acc] visitor = 
+  object((o : 'self))
+    val checked : IntSet.t = IntSet.empty
+    val queue : Node.t Queue.t = Queue.create ()
+    method node : (Node.t -> 'acc -> 'acc) -> Node.t -> 'acc -> 'acc * 'self = 
+      fun f node acc -> 
+        (*let () = print_int (Node.get_id node); print_newline () in*)
+        let acc' = f node acc in
+        let checked' = Node.fold_succ (fun checked' node' -> if mem node' checked' |> not then (Queue.add node' queue; add node' checked') else checked') (add node checked) node in
+        let o' = {<checked = checked'>} in
+          if Queue.is_empty queue then acc', o'
+          else 
+            let node' = Queue.pop queue in
+              o'#node f node' acc'
     method proc : (Node.t -> 'acc -> 'acc) -> t -> 'acc -> 'acc * 'self = 
       fun f proc acc -> 
         o#node f proc.start_node acc
@@ -172,8 +196,13 @@ let fold_preorder f proc acc =
   visitor#proc f proc acc
   |> fst
 
+let fold_bfs f proc acc = 
+  let visitor = new Fold_bfs.visitor in 
+  visitor#proc f proc acc
+  |> fst
+
 let layout (proc : t) = 
-  fold_preorder 
+  fold_bfs 
     (fun node acc -> if Node.is_internal node then (Node.get_id node) :: acc else acc) 
       proc []
   |> List.rev
