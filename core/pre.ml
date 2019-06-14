@@ -205,7 +205,7 @@ struct
   (* result : result of in and out *)
 
 
-  let run (func : M.func) : Procdesc.t = 
+  let run (func : M.func) : M.func = 
     let proc_info = func_to_proc_info func in 
 
     let new_proc = augment proc_info.proc in
@@ -438,7 +438,9 @@ struct
               else node) node all_exprs) :: nodes) [] proc_info.proc in
 
     proc_info.proc.nodes <- (List.rev new_nodes);
-    proc_info.proc
+    {
+      func with func_body = proc_info.proc |> Procdesc.recover
+    }
   
 
 end
@@ -446,7 +448,7 @@ end
 
 module PRE = Make(Dfa.DfaExpr)
 
-
+(*
 module Test = 
 struct 
   let from_prog (p : M.prog) = 
@@ -459,3 +461,4 @@ struct
         |> Procdesc.string_of_proc
         |> print_string) p
 end
+*)

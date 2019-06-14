@@ -19,6 +19,8 @@ type label = Symbol.t
 
 let labbase = ref 0
 
+let dummy : label = Symbol.symbol "dummy"
+
 let newlabel ?hint () = 
   match hint with 
   | None -> let i = !labbase in 

@@ -240,6 +240,7 @@ struct
   end
 end
 
+
 let insert_goto (proc : t) = 
   iter 
     (fun node -> 
@@ -267,7 +268,30 @@ let insert_goto (proc : t) =
             node.instrs <- new_instrs;
           | _ -> failwith "too many succs!!") proc
 
+let insert_all_label : M.stmt list -> M.stmt list = fun stmt_list ->
+  let module T (X : sig val convert : int -> M.label end) : Mimple.MIMPLE_VISITOR = 
+    struct 
+      class visitor = 
+      object((o : 'self_type))
+      inherit Mimple.Transform.visitor
+      method! target : M.target -> M.target * 'self_type = function
+        | `Line_num(i) -> `Label(X.convert i), o
+        | _ -> assert false
+      end
+    end in
+  let lnum_2_label = Array.make (List.length stmt_list) Temp.dummy in
+  let i = ref 0 in
+  let rec aux : M.stmt list -> M.stmt list = function
+    | [] -> []
+    | x :: xs -> 
+      let l = Temp.newlabel () in 
+      lnum_2_label.(!i) <- l;
+      incr i;
+      (`Label(l)) :: x :: (aux xs) in 
 
+  let module T = T(struct let convert = fun i -> lnum_2_label.(i) end) in
+  let visitor = new T.visitor in
+  aux stmt_list |> List.map (fst <-- visitor#stmt)
 
 let recover (proc : t) : M.stmt list = 
   let () = insert_goto proc in
@@ -284,12 +308,17 @@ let recover (proc : t) : M.stmt list =
                     |> Array.to_list 
                     |> List.map (fst <-- visitor#stmt)
                     |> (@) acc) []
+  |> insert_all_label
 
 
 let test (stmt_list : M.stmt list) =
+  List.fold_left
+    (fun acc stmt -> acc ^ M.string_of_stmt stmt ^ "\n") "" stmt_list
+  |> print_endline
+(*
   List.iteri
     (fun i stmt -> 
-      print_endline ("line " ^ (string_of_int i) ^ M.string_of_stmt stmt)) stmt_list
+      print_endline ("line " ^ (string_of_int i) ^ M.string_of_stmt stmt)) stmt_list *)
 
 
 

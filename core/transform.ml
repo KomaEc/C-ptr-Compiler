@@ -49,15 +49,6 @@ let simplify_func_body : stmt list -> stmt list = fun stmt_list ->
       | _ as s -> s in
   List.map substitute (dedup stmt_list)
 
-let rec simple_jump_peephole : stmt list -> stmt list =
-    function 
-    | [] -> [] 
-    | [s] -> [s] 
-    | s :: (s' :: sl' as sl) -> 
-      match s, s' with 
-        | `Goto(`Label(l)), `Label(l') when l = l' -> simple_jump_peephole sl' 
-        | `Goto(_ as l), `Goto(_) -> (`Goto(l)) :: simple_jump_peephole sl' 
-        | _ -> s :: simple_jump_peephole sl
 
 module Fold_Label_Outter = 
 struct
@@ -74,7 +65,7 @@ struct
   end
 end
 
-let unique_label : stmt list -> label -> bool =
+let unique_label : stmt list -> label -> int =
   let tbl : (label, int) Hashtbl.t = Hashtbl.create 16 in 
   let add l = 
     try
@@ -84,9 +75,11 @@ let unique_label : stmt list -> label -> bool =
   let check : stmt -> unit = function
     | `Goto(`Label(l)) | `If(_, `Label(l)) -> add l
     | _ -> () in
-  let rec scan : stmt list -> label -> bool = function 
-    | [] -> fun l -> (Hashtbl.find tbl l) = 1
+  let rec scan : stmt list -> label -> int = function 
+    | [] -> fun l -> (try Hashtbl.find tbl l with Not_found -> 0)
     | [x] -> check x; scan []
+    | (`Goto(`Label(l)))::(`Label(l')):: xs when l = l' -> 
+      add l; scan xs
     | x::(`Label(l))::xs -> 
       check x; add l; scan xs
     | x::xs -> check x; scan xs in scan
@@ -96,7 +89,10 @@ let goto_peephole : stmt list -> stmt list = fun stmt_list ->
   let rec aux = function
     | [] -> []
     | [s] -> [s]
-    | (`Goto(`Label(l)))::((`Label(l'))::sl) when l = l' && is_unique l' -> aux sl
+    | (`Label(l))::xs when (is_unique l = 0) || (is_unique l = 1) -> aux xs
+    | (`Ret(_))::((`Label(l))::_ as sl) | (`Ret_void)::((`Label(l))::_ as sl) when is_unique l > 1 -> aux sl
+    | (`Ret(_) as r)::_::sl | (`Ret_void as r)::_::sl -> aux (r::sl)
+    | (`Goto(`Label(l)))::((`Label(l'))::sl) when l = l' && is_unique l' = 1 -> aux sl
     | (`Goto(`Label(l)))::((`Label(l'))::sl) when l = l' -> (`Label(l')) :: aux sl
     | (`Goto(_ as l))::((`Goto(_))::sl) -> (`Goto(l)) :: sl |> aux
     | s::sl -> s :: aux sl in
@@ -107,7 +103,6 @@ let simplify_func : func -> func = fun func ->
     with func_body = func.func_body
                     |> simplify_func_body
                     |> goto_peephole
-
                     (*|> simple_jump_peephole*) }
                     (* buggy!! consider if (..) {..} else {} *)
 
