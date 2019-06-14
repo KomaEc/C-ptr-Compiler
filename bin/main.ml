@@ -80,9 +80,9 @@ let () =
           Mimple.print_prog prog;
           print_newline ();
           
-          let procs = Proc.from_prog prog in 
+          let procs = Proc.from_prog prog in
+          let () = List.iter Proc.insert_goto procs in 
           print_endline (Proc.string_of_t_list procs);
-
           let () = List.iter (fun proc -> Proc.(test(recover proc))) procs in
           (*let () = Proc.test procs in*)
 

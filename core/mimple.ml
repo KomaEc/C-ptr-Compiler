@@ -224,6 +224,95 @@ struct
 end
 
 
+module type MIMPLE_FOLDER = 
+sig
+  class ['acc, 'obj] visitor :
+  object('self_type)
+    method stmt : ('acc -> 'obj -> 'acc) -> 'acc -> stmt -> ('acc * 'self_type)
+    method expr : ('acc -> 'obj -> 'acc) -> 'acc -> expr -> ('acc * 'self_type)
+    method rvalue : ('acc -> 'obj -> 'acc) -> 'acc -> rvalue -> ('acc * 'self_type)
+    method immediate : ('acc -> 'obj -> 'acc) -> 'acc -> immediate -> ('acc * 'self_type)
+    method var : ('acc -> 'obj -> 'acc) -> 'acc -> var -> ('acc * 'self_type)
+    method label : ('acc -> 'obj -> 'acc) -> 'acc -> label -> ('acc * 'self_type)
+    method target : ('acc -> 'obj -> 'acc) -> 'acc -> target -> ('acc * 'self_type)
+    method condition : ('acc -> 'obj -> 'acc) -> 'acc -> condition -> ('acc * 'self_type)
+    method const : ('acc -> 'obj -> 'acc) -> 'acc -> const -> ('acc * 'self_type)
+    method temp : ('acc -> 'obj -> 'acc) -> 'acc -> Temp.t -> ('acc * 'self_type)  
+  end
+end
+
+module Fold : MIMPLE_FOLDER = 
+struct
+  class ['acc, 'obj] visitor =
+  object((o : 'self_type))
+  method stmt : ('acc -> 'obj -> 'acc) -> 'acc -> stmt -> ('acc * 'self_type) = fun f acc -> function 
+    | `Assign(v, rv) -> 
+      let (acc', o) = o#var f acc v in 
+      let (acc'', o) = o#rvalue f acc' rv in 
+      acc'', o
+    | `Label(l) -> 
+      o#label f acc l
+    | `Goto(t) -> 
+      o#target f acc t
+    | `If(cond, t) -> 
+      let (acc', o) = o#condition f acc cond in 
+      o#target f acc' t 
+    | `Static_invoke(_, imm_list) -> 
+      List.fold_left
+        (fun (acc', o') imm -> 
+          o'#immediate f acc' imm) (acc, o) imm_list
+    | `Ret(imm) -> 
+      o#immediate f acc imm
+    | _  -> acc, o
+
+  method rvalue : ('acc -> 'obj -> 'acc) -> 'acc -> rvalue -> ('acc * 'self_type) = fun f acc -> function 
+    | `Temp(t) -> 
+      o#temp f acc t
+    | `Const(c) -> 
+      o#const f acc c
+    | `Expr(expr) -> 
+      o#expr f acc expr
+    | `Array_ref(imm1, imm2) ->
+      let (acc', o') = o#immediate f acc imm1 in
+      o'#immediate f acc' imm2
+    | `Instance_field_ref(imm, _) -> 
+      o#immediate f acc imm
+    | `Static_field_ref(_) ->
+      acc, o 
+
+  method var : ('acc -> 'obj -> 'acc) -> 'acc -> var -> ('acc * 'self_type) = fun f acc v -> 
+    o#rvalue f acc (v :> rvalue)
+  
+  method target : ('acc -> 'obj -> 'acc) -> 'acc -> target -> ('acc * 'self_type) = fun _ acc _ -> acc, o
+  method label : ('acc -> 'obj -> 'acc) -> 'acc -> label -> ('acc * 'self_type) = fun _ acc _ -> acc, o
+  method immediate : ('acc -> 'obj -> 'acc) -> 'acc -> immediate -> ('acc * 'self_type) = fun _ acc _ -> acc, o
+  method condition : ('acc -> 'obj -> 'acc) -> 'acc -> condition -> ('acc * 'self_type) = fun f acc -> function 
+    | `Temp(t) -> 
+      o#temp f acc t
+    | `Rel(imm1, _, imm2) -> 
+      let (acc', o') = o#immediate f acc imm1 in
+      o'#immediate f acc' imm2
+  method temp : ('acc -> 'obj -> 'acc) -> 'acc -> Temp.t -> ('acc * 'self_type) = fun _ acc _ -> acc, o
+  method const : ('acc -> 'obj -> 'acc) -> 'acc -> const -> ('acc * 'self_type) = fun _ acc _ -> acc, o
+  method expr : ('acc -> 'obj -> 'acc) -> 'acc -> expr -> ('acc * 'self_type) = fun f acc -> function 
+    | `Bin(imm1, _, imm2) -> 
+      let (acc', o') = o#immediate f acc imm1 in
+      o'#immediate f acc' imm2
+    | `Rel(imm1, _, imm2) -> 
+      let (acc', o') = o#immediate f acc imm1 in
+      o'#immediate f acc' imm2
+    | `Static_invoke(_, imm_list) -> 
+      List.fold_left
+        (fun (acc', o') imm -> 
+          o'#immediate f acc' imm) (acc, o) imm_list
+    | `New_expr(_) -> acc, o
+    | `New_array_expr(_, imm) ->  
+      o#immediate f acc imm
+  end
+end
+
+
+
 
 
 

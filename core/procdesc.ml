@@ -2,6 +2,8 @@
 module P = Cm_util.Printing
 module M = Mimple
 open P
+module U = Cm_util.Util
+open U
 
 module Node = struct 
 
@@ -11,7 +13,7 @@ module Node = struct
 
   type t = {
     id: id;
-    instrs: M.stmt array;
+    mutable instrs: M.stmt array;
     loc: int; (* Start index in the original procedure *)
     pname: Symbol.t;
     mutable pred: t list;
@@ -43,6 +45,8 @@ module Node = struct
   let is_entry : t -> bool = fun node -> node.id = -1
 
   let is_internal : t -> bool = fun node -> not (is_entry node) && not (is_exit node)
+
+  let is_internal_id : id -> bool = fun id -> id <> -2 && id <> -1
 
 
   let compare node1 node2 = Pervasives.compare node1.id node2.id 
@@ -165,7 +169,7 @@ struct
   end
 end
 
-module Fold_bfs =
+module Fold_bfs : PROC_FOLDER =
 struct
   module IntSet = Set.Make(struct type t = int let compare = compare end)
   let mem node set = let id = Node.get_id node in IntSet.mem id set
@@ -176,7 +180,7 @@ struct
     val queue : Node.t Queue.t = Queue.create ()
     method node : (Node.t -> 'acc -> 'acc) -> Node.t -> 'acc -> 'acc * 'self = 
       fun f node acc -> 
-        (*let () = print_int (Node.get_id node); print_newline () in*)
+        let () = print_int (Node.get_id node); print_newline () in
         let acc' = f node acc in
         let checked' = Node.fold_succ (fun checked' node' -> if mem node' checked' |> not then (Queue.add node' queue; add node' checked') else checked') (add node checked) node in
         let o' = {<checked = checked'>} in
@@ -200,6 +204,12 @@ let fold_bfs f proc acc =
   let visitor = new Fold_bfs.visitor in 
   visitor#proc f proc acc
   |> fst
+
+let iter_preorder f proc = 
+  fold_preorder (fun node () -> f node) proc ()
+
+let iter_bfs f proc =
+  fold_bfs (fun node () -> f node) proc () 
 
 let layout (proc : t) = 
   fold_bfs 
@@ -230,19 +240,49 @@ struct
   end
 end
 
+let insert_goto (proc : t) = 
+  iter 
+    (fun node -> 
+      if Node.is_internal node then 
+        let length = Array.length node.instrs in 
+        let ori_label = 
+          begin
+            if length > 0 then 
+              match node.instrs.(length-1) with 
+                | `If(_, `Line_num(n)) | `Goto(`Line_num(n)) -> Some n
+                | _ -> None
+            else None
+          end in 
+        let filter = 
+          match ori_label with 
+            | Some n -> (fun node -> let id = Node.get_id node in Node.is_internal node && id <> n)
+            | _ -> Node.is_internal in 
+        let legal_succ = List.filter filter (Node.get_succs node) in 
+        match legal_succ with 
+          | [] -> ()
+          | [n] -> 
+            let new_instrs = Array.make (length+1) `Nop in 
+            let () = Array.blit node.instrs 0 new_instrs 0 length in 
+            new_instrs.(length) <- (`Goto(`Line_num(Node.get_id n)));
+            node.instrs <- new_instrs;
+          | _ -> failwith "too many succs!!") proc
+
+
+
 let recover (proc : t) : M.stmt list = 
+  let () = insert_goto proc in
   let order = layout proc 
   and id2node = Hashtbl.create 16 
   and id2lnum = Hashtbl.create 16 in 
   let () = iter (fun node -> Hashtbl.add id2node (Node.get_id node) node) proc
-  and () = List.iteri (fun i idx -> Hashtbl.add id2lnum idx i) order 
+  and _ = List.fold_left (fun i idx -> Hashtbl.add id2lnum idx i; i+(Hashtbl.find id2node idx |> Node.get_instrs |> Array.length)) 0 order
+  (*and () = List.iteri (fun i idx -> Hashtbl.add id2lnum idx i) order *)
   and visitor = new BlockNum2LNum.visitor(id2lnum) in
-  List.map (fun id -> Hashtbl.find id2node id) order 
+  List.map (Hashtbl.find id2node) order 
   |> List.fold_left (fun acc node -> 
                     Node.get_instrs node 
                     |> Array.to_list 
-                    |> List.map visitor#stmt
-                    |> List.map fst
+                    |> List.map (fst <-- visitor#stmt)
                     |> (@) acc) []
 
 

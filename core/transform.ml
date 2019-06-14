@@ -59,11 +59,54 @@ let rec simple_jump_peephole : stmt list -> stmt list =
         | `Goto(_ as l), `Goto(_) -> (`Goto(l)) :: simple_jump_peephole sl' 
         | _ -> s :: simple_jump_peephole sl
 
+module Fold_Label_Outter = 
+struct
+  class ['acc] visitor = 
+  object((o : 'self_type))
+  inherit ['acc, Mimple.label] Mimple.Fold.visitor as super
+  (*method! label : ('acc -> Mimple.label -> 'acc) -> 'acc -> Mimple.label -> 'acc * 'self_type = 
+    fun f acc l -> f acc l, o*)
+  method! stmt : ('acc -> Mimple.label -> 'acc) -> 'acc -> Mimple.stmt -> 'acc * 'self_type = fun f acc -> function
+    | `Goto(`Label(l))
+    | `If(_, `Label(l)) -> 
+      f acc l, o
+    | _ as stmt -> super#stmt f acc stmt
+  end
+end
+
+let unique_label : stmt list -> label -> bool =
+  let tbl : (label, int) Hashtbl.t = Hashtbl.create 16 in 
+  let add l = 
+    try
+      match Hashtbl.find tbl l with 
+        | n -> Hashtbl.replace tbl l (n+1)
+    with Not_found -> Hashtbl.add tbl l 1 in
+  let check : stmt -> unit = function
+    | `Goto(`Label(l)) | `If(_, `Label(l)) -> add l
+    | _ -> () in
+  let rec scan : stmt list -> label -> bool = function 
+    | [] -> fun l -> (Hashtbl.find tbl l) = 1
+    | [x] -> check x; scan []
+    | x::(`Label(l))::xs -> 
+      check x; add l; scan xs
+    | x::xs -> check x; scan xs in scan
+
+let goto_peephole : stmt list -> stmt list = fun stmt_list -> 
+  let is_unique = unique_label stmt_list in
+  let rec aux = function
+    | [] -> []
+    | [s] -> [s]
+    | (`Goto(`Label(l)))::((`Label(l'))::sl) when l = l' && is_unique l' -> aux sl
+    | (`Goto(`Label(l)))::((`Label(l'))::sl) when l = l' -> (`Label(l')) :: aux sl
+    | (`Goto(_ as l))::((`Goto(_))::sl) -> (`Goto(l)) :: sl |> aux
+    | s::sl -> s :: aux sl in
+  aux stmt_list
 
 let simplify_func : func -> func = fun func -> 
   { func 
     with func_body = func.func_body
                     |> simplify_func_body
+                    |> goto_peephole
 
                     (*|> simple_jump_peephole*) }
                     (* buggy!! consider if (..) {..} else {} *)
