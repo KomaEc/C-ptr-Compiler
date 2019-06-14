@@ -107,7 +107,8 @@ let simplify_func : func -> func = fun func ->
                     (* buggy!! consider if (..) {..} else {} *)
 
 
-
+let pre_optimize : func -> func = 
+  simplify_func <-- Pre.PRE.run <-- simplify_func
 
 
 ;;

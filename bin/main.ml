@@ -85,6 +85,8 @@ let () =
           print_endline (Proc.string_of_t_list procs);
           (*let () = List.iter (fun proc -> Proc.(test(recover proc))) procs in*)
           (*let () = Proc.test procs in*)
+          let prog1 = T.get_mimple_after_pre () in 
+          Mimple.print_prog prog1;
 
 (*
           let prog1 = T.get_mimple1() in 

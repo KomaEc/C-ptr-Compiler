@@ -9,8 +9,10 @@ module Node = struct
 
   type id = int 
 
-  let cnt = ref 0;
+  let cnt = ref 0
 
+  let reset () = cnt := 0
+  
   type t = {
     id: id;
     mutable instrs: M.stmt array;
@@ -79,10 +81,21 @@ module Node = struct
   let iter_pred : (t -> unit) -> t -> unit = 
     fun f node -> List.iter f node.pred
 
+  (* very bad design !!!! *)
   let make instrs loc pname =
     incr cnt;
     {
       id = !cnt;
+      instrs;
+      loc;
+      pname;
+      pred = [];
+      succ = []
+    }
+
+  let create id instrs loc pname = 
+    {
+      id;
       instrs;
       loc;
       pname;
@@ -266,7 +279,7 @@ let insert_goto (proc : t) =
             let () = Array.blit node.instrs 0 new_instrs 0 length in 
             new_instrs.(length) <- (`Goto(`Line_num(Node.get_id n)));
             node.instrs <- new_instrs;
-          | _ -> failwith "too many succs!!") proc
+          | _ as l -> failwith ("too many succs!!" ^ " " ^ (List.length l |> string_of_int) ^ " with problems in node " ^ (node |> Node.get_id |> string_of_int))) proc
 
 let insert_all_label : M.stmt list -> M.stmt list = fun stmt_list ->
   let module T (X : sig val convert : int -> M.label end) : Mimple.MIMPLE_VISITOR = 
@@ -374,6 +387,7 @@ let find_leader (instrs : M.stmt array) : bool array =
   is_leader
 
 let from_func (func: M.func) (find_leader : M.stmt array -> bool array) : t = 
+  Node.reset ();
   let locals = M.get_locals func 
   and formals = M.get_formals func 
   and instrs = Array.of_list func.func_body in
