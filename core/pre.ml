@@ -61,6 +61,14 @@ let augment (proc : Procdesc.t) : Procdesc.t =
                     node'.pred <- node'' :: node'.pred;
                     node''.succ <- [node'];
                     node''.pred <- [node];
+                    let id', id'' = Procdesc.Node.get_id node', Procdesc.Node.get_id node'' in
+                    let length = Procdesc.Node.get_instrs node |> Array.length in
+                    begin
+                      match (Procdesc.Node.get_instrs node).(length-1) with 
+                        | `If(x, `Line_num(i)) when i = id' -> (Procdesc.Node.get_instrs node).(length-1) <- `If(x, `Line_num(id''))
+                        | `Goto(`Line_num(i)) when i = id' -> (Procdesc.Node.get_instrs node).(length-1) <- `Goto(`Line_num(id''))
+                        | _ -> ()
+                    end;
                     new_nodes_ref := Set.add node'' !new_nodes_ref
               end) node
         end) proc; 
