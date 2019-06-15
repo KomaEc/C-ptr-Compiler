@@ -101,6 +101,10 @@ let end_function () =
     end in
   prog_frag := func :: !prog_frag
 
+let get_mimple_ori () = 
+  List.rev !prog_frag 
+
+
 let get_mimple () = 
   List.rev !prog_frag |> List.map T.simplify_func
 

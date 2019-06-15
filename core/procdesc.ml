@@ -193,7 +193,7 @@ struct
     val queue : Node.t Queue.t = Queue.create ()
     method node : (Node.t -> 'acc -> 'acc) -> Node.t -> 'acc -> 'acc * 'self = 
       fun f node acc -> 
-        let () = print_int (Node.get_id node); print_newline () in
+        (*let () = print_int (Node.get_id node); print_newline () in*)
         let acc' = f node acc in
         let checked' = Node.fold_succ (fun checked' node' -> if mem node' checked' |> not then (Queue.add node' queue; add node' checked') else checked') (add node checked) node in
         let o' = {<checked = checked'>} in
@@ -396,15 +396,14 @@ let from_func (func: M.func) (find_leader : M.stmt array -> bool array) : t =
     let offset = ref 0 in 
     Array.iteri 
     (fun i -> function 
-    | `Label(l) when i > 0 -> 
-      Hashtbl.add tbl l (i - !offset - 1);
+    | `Label(l) -> 
+      Hashtbl.add tbl l (i - !offset);
       incr offset 
     | _ -> ()) instrs;
-    let aux = Array.make (Array.length instrs - !offset - 1) `Nop in
+    let aux = Array.make (Array.length instrs - !offset) `Nop in
     offset := 0;
-    Array.iteri
-    (fun i -> function 
-    | _ when i = 0 -> () 
+    Array.iter
+    (function 
     | `Label(_) -> () 
     | `Goto(`Label(l)) -> 
       aux.(!offset) <- (`Goto(`Line_num(Hashtbl.find tbl l)));
@@ -416,7 +415,18 @@ let from_func (func: M.func) (find_leader : M.stmt array -> bool array) : t =
       aux.(!offset) <- stmt;
       incr offset) instrs;
     aux in 
+  let () = 
+    Array.fold_left
+      (fun acc stmt -> acc ^ Mimple.string_of_stmt stmt ^ "\n")
+        "" instrs 
+    |> print_endline in
   let instrs = convert_to_lnum() in
+  print_endline "hihihihih";
+  let () = 
+    Array.fold_left
+      (fun acc stmt -> acc ^ Mimple.string_of_stmt stmt ^ "\n")
+        "" instrs 
+    |> print_endline in
   let length = Array.length instrs in
   (*
   let is_leader = Array.make (length + 1) false in

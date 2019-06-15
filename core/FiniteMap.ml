@@ -41,11 +41,13 @@ let equal tbl1 tbl2 = equal' tbl1 tbl2 && equal' tbl2 tbl1
 
 
 let fold_equal : ('v -> 'v -> bool) -> ('a, 'v) t -> ('a, 'v) t -> bool = fun (=) ->
-  fun tbl1 tbl2 -> 
-  H.fold 
-  (fun x v acc -> 
-  let v' = H.find tbl2 x in 
-  acc && (v = v')) tbl1 true
+  let equal' = 
+    fun tbl1 tbl2 -> 
+    H.fold 
+    (fun x v acc -> 
+    let v' = H.find tbl2 x in 
+    acc && (v = v')) tbl1 true in
+  fun tbl1 tbl2 -> equal' tbl1 tbl2 && equal' tbl2 tbl1
 
 
 let iter : ('a -> 'value -> unit) -> ('a, 'value) t -> unit = 

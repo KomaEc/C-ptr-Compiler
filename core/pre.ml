@@ -230,9 +230,9 @@ struct
 
     let () = Procdesc.iter (fun node -> Hashtbl.add e_use (Procdesc.Node.get_id node) (gen_trans node proc_info.empty)) proc_info.proc in
 
-    let e_use_string = string_of_result true e_use proc_info in
+    (*let e_use_string = string_of_result true e_use proc_info in
 
-    let () = print_endline ("******************************e_use**************************\n\n" ^ e_use_string ^ "\n***************************end**************************\n") in
+    let () = print_endline ("******************************e_use**************************\n\n" ^ e_use_string ^ "\n***************************end**************************\n") in*)
 
     let dfa_val_node_all = Hashtbl.create 16 in
 
@@ -273,9 +273,9 @@ struct
     let step1_dfa = config_dfa proc_info `Is_Backward `Must step1_transfer in 
     let (anti_in, _) = do_dfa step1_dfa in 
 
-    let anti_in_string = string_of_result true anti_in proc_info in
+    (*let anti_in_string = string_of_result true anti_in proc_info in
 
-    let () = print_endline ("*****************************anti_in************************\n\n" ^ anti_in_string ^ "\n***************************end***************************\n") in
+    let () = print_endline ("*****************************anti_in************************\n\n" ^ anti_in_string ^ "\n***************************end***************************\n") in*)
 
 
     let step2_transfer = make_step2_transfer anti_in in 
@@ -283,17 +283,17 @@ struct
     let (aval_in, _) = do_dfa step2_dfa in 
 
 
-    let aval_in_string = string_of_result true aval_in proc_info in 
+    (*let aval_in_string = string_of_result true aval_in proc_info in 
 
-    let () = print_endline ("*****************************avail_in************************\n\n" ^ aval_in_string ^ "\n***************************end***************************\n") in
+    let () = print_endline ("*****************************avail_in************************\n\n" ^ aval_in_string ^ "\n***************************end***************************\n") in*)
 
 
     let earliest = anti_in - aval_in in
 
 
-    let earliest_string = string_of_result true earliest proc_info in
+    (*let earliest_string = string_of_result true earliest proc_info in
 
-    let () = print_endline ("*****************************earliest************************\n\n" ^ earliest_string ^ "\n***************************end***************************\n") in
+    let () = print_endline ("*****************************earliest************************\n\n" ^ earliest_string ^ "\n***************************end***************************\n") in*)
 
 
     let post_tranfer node value = 
@@ -303,15 +303,15 @@ struct
     let _ = make_step3_transfer earliest in
     let step3_transfer = post_tranfer in
     let step3_dfa = config_dfa proc_info `Is_Forward `Must step3_transfer in 
-    let (postponable_in, postponable_out) = do_dfa step3_dfa in
+    let (postponable_in, _) = do_dfa step3_dfa in
 
-    let postponable_in_string = string_of_result true postponable_in proc_info in 
+    (*let postponable_in_string = string_of_result true postponable_in proc_info in 
 
     let () = print_endline ("*****************************postponable_in************************\n\n" ^ postponable_in_string ^ "\n***************************end***************************\n") in
 
     let postponable_out_string = string_of_result false postponable_out proc_info in 
 
-    let () = print_endline ("*****************************postponable_out************************\n\n" ^ postponable_out_string ^ "\n***************************end***************************\n") in
+    let () = print_endline ("*****************************postponable_out************************\n\n" ^ postponable_out_string ^ "\n***************************end***************************\n") in*)
     
 
     let fold_succ_inter_inner_union res1 res2 = 
@@ -349,9 +349,9 @@ struct
       (earliest || postponable_in) 
       && (e_use || !(earliest <&> postponable_in)) in
 
-    let latest_string = string_of_result true latest proc_info in 
+    (*let latest_string = string_of_result true latest proc_info in 
 
-    let () = print_endline ("*****************************latest************************\n\n" ^ latest_string ^ "\n***************************end***************************\n") in
+    let () = print_endline ("*****************************latest************************\n\n" ^ latest_string ^ "\n***************************end***************************\n") in*)
 
 
     let use_transfer node value = 
@@ -362,16 +362,16 @@ struct
     let step4_transfer = use_transfer in
     let step4_dfa = config_dfa proc_info `Is_Backward `May step4_transfer in
 
-    let (use_in, use_out) = do_dfa (*~verbose:() ~string_of_result:X.string_of_result*) step4_dfa in
+    let (_, use_out) = do_dfa (*~verbose:() ~string_of_result:X.string_of_result*) step4_dfa in
 
 
-    let use_out_string = string_of_result false use_out proc_info in 
+    (*let use_out_string = string_of_result false use_out proc_info in 
 
     let use_in_string = string_of_result true use_in proc_info in
 
     let () = print_endline ("*****************************use_out************************\n\n" ^ use_out_string ^ "\n***************************end***************************\n") in
 
-    let () = print_endline ("*****************************use_in************************\n\n" ^ use_in_string ^ "\n***************************end***************************\n") in
+    let () = print_endline ("*****************************use_in************************\n\n" ^ use_in_string ^ "\n***************************end***************************\n") in*)
 
 
 

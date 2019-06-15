@@ -79,6 +79,11 @@ let () =
           print_endline "\nTranslating to Mimple...\n";
           Mimple.print_prog prog;
           print_newline ();
+
+          let prog' = T.get_mimple_ori () in
+          Mimple.print_prog prog';
+          print_newline ();
+          print_endline "hello";
           
           let procs = Proc.from_prog prog in
           (*let () = List.iter Proc.insert_goto procs in *)

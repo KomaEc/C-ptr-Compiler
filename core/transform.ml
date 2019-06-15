@@ -80,21 +80,50 @@ let unique_label : stmt list -> label -> int =
     | [x] -> check x; scan []
     | (`Goto(`Label(l)))::(`Label(l')):: xs when l = l' -> 
       add l; scan xs
+    | `Ret_void::_::xs | `Ret(_)::_::xs -> scan xs
+    | (`Goto(_) as x)::xs -> check x; scan xs
     | x::(`Label(l))::xs -> 
       check x; add l; scan xs
     | x::xs -> check x; scan xs in scan
 
+module Fold_label = 
+struct
+  class ['acc] visitor = 
+  object((o : 'self_type))
+    inherit ['acc, Mimple.label] Mimple.Fold.visitor as super
+    method! target =
+      fun f acc -> function 
+        | `Label(l) -> f acc l, o
+        | _ -> acc, o
+    method! stmt = fun f acc -> function
+      | `Label(l) -> f acc l, o
+      | _ as s -> super#stmt f acc s
+  end
+end
+
+let get_labels : stmt list -> label list = 
+  let visitor = new Fold_label.visitor in
+  fun stmt_list -> 
+    List.fold_left
+      (fun acc stmt -> acc @ (visitor#stmt (fun xs x -> xs @ [x]) [] stmt |> fst)) [] stmt_list
+    |> List.sort_uniq compare
+
+
 let goto_peephole : stmt list -> stmt list = fun stmt_list -> 
   let is_unique = unique_label stmt_list in
+  let labels = get_labels stmt_list in
+  Cm_util.Printing.string_of_list
+    (fun l -> Temp.string_of_label l ^ " : " ^ string_of_int (is_unique l)) labels 
+|> print_endline;
   let rec aux = function
     | [] -> []
     | [s] -> [s]
-    | (`Label(l))::xs when (is_unique l = 0) || (is_unique l = 1) -> aux xs
-    | (`Ret(_))::((`Label(l))::_ as sl) | (`Ret_void)::((`Label(l))::_ as sl) when is_unique l > 1 -> aux sl
+    | (`Ret(_) as r)::((`Label(l))::_ as sl) | (`Ret_void as r)::((`Label(l))::_ as sl) when is_unique l >= 1 -> r :: aux sl (* !!!!! since when finding next label, the one next to return doesn't count. *)
     | (`Ret(_) as r)::_::sl | (`Ret_void as r)::_::sl -> aux (r::sl)
     | (`Goto(`Label(l)))::((`Label(l'))::sl) when l = l' && is_unique l' = 1 -> aux sl
     | (`Goto(`Label(l)))::((`Label(l'))::sl) when l = l' -> (`Label(l')) :: aux sl
     | (`Goto(_ as l))::((`Goto(_))::sl) -> (`Goto(l)) :: sl |> aux
+    | (`Label(l))::sl when is_unique l = 0 -> aux sl
     | s::sl -> s :: aux sl in
   aux stmt_list
 
