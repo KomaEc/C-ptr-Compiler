@@ -1,4 +1,3 @@
-
 open Cm_core.Ast.Util
 module Parser = Cm_core.Parser 
 open Printf 
@@ -63,55 +62,15 @@ let print_helper = "What do you need?\n"
 
 let () = 
   match Array.length Sys.argv with 
-  | 1 -> fprintf stderr "%s" print_helper; exit(0)  
+  | 1 -> fprintf stderr "%s" print_helper; exit(0)   
   | 2 -> (let fname = Sys.argv.(1) in 
           let inx = open_in fname in 
           let lexbuf = from_channel inx in 
           lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = fname};
-          (*(match parse_with_error lexbuf with 
-          | Some s -> print_stmt "" (simplify s) 
-          | None -> ());*)
-          (*print_stmt "" (Seq(parse_with_error lexbuf, Support.Error.dummyinfo));*)
-          let s = simplify (parse_with_error lexbuf) in 
-          print_endline "\nOriginal program: ";
-          print_stmt "" s;
-          print_newline();
-          let prog = check_with_error s in
-          print_endline "\nTranslating to Mimple...\n";
-          Mimple.print_prog prog;
-          print_newline ();
-
-          let prog' = T.get_mimple_ori () in
-          Mimple.print_prog (prog', Cm_core.Symbol.empty);
-          print_newline ();
-          print_endline "hello";
-          
-          let procs = Proc.from_prog prog in
-          (*let () = List.iter Proc.insert_goto procs in *)
-          print_endline (Proc.string_of_t_list procs);
-          (*let () = List.iter (fun proc -> Proc.(test(recover proc))) procs in*)
-          (*let () = Proc.test procs in*)
-          let prog1 = T.get_mimple_after_pre () in 
-          Mimple.print_prog (prog1, Cm_core.Symbol.empty);
-
-          Binary.compile (prog1, Cm_core.Symbol.empty);
-
-(*
-          let prog1 = T.get_mimple1() in 
-          Mimple.print_prog prog1;
-          print_newline();
-          print_string "Analysis Result : \n\n";
-          Dfa.analysis_prog prog;
-          print_string "Optimizting... \n\n";
-          let prog4 = T.optimize() in 
-          Mimple.print_prog prog4;
-
-          print_newline();
-          Dataflow.print_result prog;
-          Pre.Test.from_prog prog; *)
-          close_in inx
-          )
+          lexbuf 
+          |> parse_with_error
+          |> simplify
+          |> check_with_error
+          |> Binary.compile;
+          close_in inx)
   | _ -> fprintf stderr "Too many arguments! Expected 1\n"; exit(0)
-
-
-  

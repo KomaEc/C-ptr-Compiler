@@ -688,4 +688,4 @@ let check s : M.prog =
   let () = check_init s in 
   let _ = trans_stmt Global empty glb_senv s in 
   let class_info = map (List.map (fun (s, ty) -> s, type_convert ty)) glb_senv in
-  get_mimple (), class_info
+  get_mimple_after_pre (), class_info
