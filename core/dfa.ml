@@ -1032,5 +1032,5 @@ let analysis_prog : M.prog -> unit =
   fun prog -> 
   List.iter 
   (fun func -> 
-  print_endline (analysis_func func)) prog
+  print_endline (analysis_func func)) (fst prog)
   

@@ -683,8 +683,9 @@ let rec trans_stmt : status -> var_env -> str_env -> stmt -> P.t =
       | _ -> Nret
   in trstmt
 
-let check s = 
+let check s : M.prog = 
   let glb_senv =(check_def empty s) in 
   let () = check_init s in 
   let _ = trans_stmt Global empty glb_senv s in 
-  get_mimple ()
+  let class_info = map (List.map (fun (s, ty) -> s, type_convert ty)) glb_senv in
+  get_mimple_after_pre (), class_info

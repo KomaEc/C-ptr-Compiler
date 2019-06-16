@@ -72,7 +72,7 @@ let begin_function name ty_list ty =
 
 
 
-let prog_frag : M.prog ref = ref []
+let prog_frag : M.func list ref = ref []
 
 
 (* TODO : modify here *)

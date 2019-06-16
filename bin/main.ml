@@ -15,6 +15,7 @@ module T = Cm_core.Translate
 module Proc = Cm_core.Procdesc
 module Dataflow = Cm_core.Dataflow
 module Pre = Cm_core.Pre
+module Binary = Cm_backend.Binary
 
 let print_position outx lexbuf = 
   let pos = lexbuf.lex_curr_p in 
@@ -35,29 +36,29 @@ let parse_with_error lexbuf =
 let check_with_error s = 
   try check s with 
   | Duplicated_Definition i -> 
-    fprintf stderr "%a %s" printInfo i "Duplicated definition\n"; []
+    fprintf stderr "%a %s" printInfo i "Duplicated definition\n"; exit(0)
   | Lack_Definition i -> 
-    fprintf stderr "%a %s" printInfo i "LackDefinition\n"; []
+    fprintf stderr "%a %s" printInfo i "LackDefinition\n"; exit(0)
   | No_Initialization i -> 
-    fprintf stderr "%a %s" printInfo i "No Initialization\n"; []
+    fprintf stderr "%a %s" printInfo i "No Initialization\n"; exit(0)
   | Ill_Typed i -> 
-    fprintf stderr "%a %s" printInfo i "Ill Typed\n"; []
+    fprintf stderr "%a %s" printInfo i "Ill Typed\n"; exit(1)
   | Arity_Mismatched i -> 
-    fprintf stderr "%a %s" printInfo i "Arity Mismatched\n"; []
+    fprintf stderr "%a %s" printInfo i "Arity Mismatched\n"; exit(1)
   | Fundec_Mismatched i -> 
-    fprintf stderr "%a %s" printInfo i "Function Declaration Mismatched\n"; []
+    fprintf stderr "%a %s" printInfo i "Function Declaration Mismatched\n"; exit(1)
   | Not_Function i -> 
-    fprintf stderr "%a %s" printInfo i "Identifier Not a Function\n"; []
+    fprintf stderr "%a %s" printInfo i "Identifier Not a Function\n"; exit(1)
   | No_Fieldname i -> 
-    fprintf stderr "%a %s" printInfo i "No Such Field\n"; []
+    fprintf stderr "%a %s" printInfo i "No Such Field\n"; exit(1)
   | Not_Struct i -> 
-    fprintf stderr "%a %s" printInfo i "Identifier Not a Struct\n"; []
+    fprintf stderr "%a %s" printInfo i "Identifier Not a Struct\n"; exit(1)
   | Alloc_Non_Struct i -> 
-    fprintf stderr "%a %s" printInfo i "Allocation of Array and Struct Only\n"; []
+    fprintf stderr "%a %s" printInfo i "Allocation of Array and Struct Only\n"; exit(1)
   | Type_Var_Misuse i -> 
-    fprintf stderr "%a %s" printInfo i "Variable Expected. Not Type\n"; []
+    fprintf stderr "%a %s" printInfo i "Variable Expected. Not Type\n"; exit(1)
   | Null_Reference i -> 
-    fprintf stderr "%a %s" printInfo i "Referencing a Nullptr\n"; []
+    fprintf stderr "%a %s" printInfo i "Referencing a Nullptr\n"; exit(1)
 let print_helper = "What do you need?\n"
 
 let () = 
@@ -81,7 +82,7 @@ let () =
           print_newline ();
 
           let prog' = T.get_mimple_ori () in
-          Mimple.print_prog prog';
+          Mimple.print_prog (prog', Cm_core.Symbol.empty);
           print_newline ();
           print_endline "hello";
           
@@ -91,7 +92,9 @@ let () =
           (*let () = List.iter (fun proc -> Proc.(test(recover proc))) procs in*)
           (*let () = Proc.test procs in*)
           let prog1 = T.get_mimple_after_pre () in 
-          Mimple.print_prog prog1;
+          Mimple.print_prog (prog1, Cm_core.Symbol.empty);
+
+          Binary.compile (prog1, Cm_core.Symbol.empty);
 
 (*
           let prog1 = T.get_mimple1() in 

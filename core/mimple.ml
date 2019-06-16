@@ -102,7 +102,12 @@ and func =
 
 
 (* TODO : add glb_vars info and cls info! *)
-and prog = func list
+and prog = func list * (Symbol.t * Types.ty) list Symbol.table
+
+let get_args : func -> Temp.t list = 
+  fun func -> 
+    List.rev_map
+      (fun (`Identity(`Temp(t), _)) -> t) func.identities
 
 let rvalue_to_var : rvalue -> var = function 
   | `Temp(t) -> `Temp(t) 
@@ -325,21 +330,20 @@ let get_formals (func : func) : (Temp.t * ty) list =
   List.map2 
   (fun (`Identity(`Temp(t), _)) ty -> (t, ty)) func.identities func.func_args
 
-let convert_to_lnum func = 
+let convert_to_lnum func : func = 
   let instrs = Array.of_list func.func_body in
   let tbl = Hashtbl.create 16 in 
   let offset = ref 0 in 
   Array.iteri 
   (fun i -> function 
-  | `Label(l) when i > 0 -> 
-    Hashtbl.add tbl l (i - !offset - 1);
+  | `Label(l) -> 
+    Hashtbl.add tbl l (i - !offset);
     incr offset 
   | _ -> ()) instrs;
-  let aux = Array.make (Array.length instrs - !offset - 1) `Nop in
+  let aux = Array.make (Array.length instrs - !offset) `Nop in
   offset := 0;
-  Array.iteri
-  (fun i -> function 
-  | _ when i = 0 -> () 
+  Array.iter
+  (function 
   | `Label(_) -> () 
   | `Goto(`Label(l)) -> 
     aux.(!offset) <- (`Goto(`Line_num(Hashtbl.find tbl l)));
@@ -349,8 +353,12 @@ let convert_to_lnum func =
     incr offset
   | _ as stmt -> 
     aux.(!offset) <- stmt;
-    incr offset) instrs ;
-    { func with func_body = Array.to_list aux}
+    incr offset) instrs;
+  let func_body = 
+    Array.fold_right (fun stmt acc -> stmt :: acc) aux [] in
+  {
+    func with func_body = func_body
+  }
 
 
 let transform_stmt (to_var : Temp.t -> immediate) : stmt -> stmt * bool = 
@@ -552,20 +560,20 @@ and string_of_immediate_list : immediate list -> string =
                  ^ string_of_immediate_list xl
 
 let string_of_func : func -> string = 
-  fun { func_name; func_args; func_ret; identities; local_decls; func_body } -> 
-    "\nBeginFunc " ^ Symbol.name func_name 
-    ^ " : " ^ string_of_ty_list func_args ^ " -> " 
-    ^ string_of_ty func_ret ^ "\n"
-    ^ (List.fold_left (fun acc decl -> acc ^ string_of_decl decl ^ "\n") "" local_decls)
-    ^ (List.fold_left (fun acc idt -> acc ^ string_of_identity idt ^ "\n") "" identities)
-    ^ (List.fold_left (fun acc stmt -> acc ^ string_of_stmt stmt ^ "\n") "" func_body)
+  fun func -> 
+    "\nBeginFunc " ^ Symbol.name func.func_name 
+    ^ " : " ^ string_of_ty_list func.func_args ^ " -> " 
+    ^ string_of_ty func.func_ret ^ "\n"
+    (*^ (List.fold_left (fun acc decl -> acc ^ string_of_decl decl ^ "\n") "" local_decls)
+    ^ (List.fold_left (fun acc idt -> acc ^ string_of_identity idt ^ "\n") "" identities)*)
+    ^ (List.fold_left (fun acc stmt -> acc ^ string_of_stmt stmt ^ "\n") "" func.func_body)
     ^ "EndFunc\n"
     
 
-let string_of_prog : prog -> string = 
+let string_of_prog : prog -> string = fun (prog, _) -> 
   List.fold_left
     (fun prev method_chunk -> 
-      prev ^ string_of_func method_chunk) ""
+      prev ^ string_of_func method_chunk) "" prog
 
 let print_prog : prog -> unit = 
   fun prog -> string_of_prog prog |> print_endline

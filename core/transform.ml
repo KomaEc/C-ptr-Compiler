@@ -76,7 +76,7 @@ let unique_label : stmt list -> label -> int =
     | `Goto(`Label(l)) | `If(_, `Label(l)) -> add l
     | _ -> () in
   let rec scan : stmt list -> label -> int = function 
-    | [] -> fun l -> (try Hashtbl.find tbl l with Not_found -> 0)
+    | [] -> fun l -> (try Hashtbl.find tbl l with Not_found -> Hashtbl.add tbl l 0; 0)
     | [x] -> check x; scan []
     | (`Goto(`Label(l)))::(`Label(l')):: xs when l = l' -> 
       add l; scan xs
