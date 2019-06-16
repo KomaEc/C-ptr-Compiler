@@ -21,3 +21,5 @@ let empty = IntMap.empty
 
 let enter (_,n) a t = IntMap.add n a t
 let lookup (_,n) t = IntMap.find n t
+
+let map = IntMap.map

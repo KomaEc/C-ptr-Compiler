@@ -208,6 +208,8 @@ struct
   end
 end
 
+(* Need a false branch first !!! *)
+
 let fold_preorder f proc acc = 
   let visitor = new Fold_preorder.visitor in
   visitor#proc f proc acc
@@ -225,7 +227,7 @@ let iter_bfs f proc =
   fold_bfs (fun node () -> f node) proc () 
 
 let layout (proc : t) = 
-  fold_bfs 
+  fold_preorder
     (fun node acc -> if Node.is_internal node then (Node.get_id node) :: acc else acc) 
       proc []
   |> List.rev
@@ -517,7 +519,7 @@ let string_of_proc : t -> string = fun procdesc ->
   ^ "\n"
 
 let from_prog : M.prog -> t list = 
-  List.map from_func_singleton
+  List.map from_func_singleton <-- fst
 
 let string_of_t_list : t list -> string = 
   List.fold_left 

@@ -222,7 +222,7 @@ let print_result (prog : M.prog) : unit =
   (fun func ->
   let ant_dfa = Anticipate.from_func func in
   let ant_res = do_dfa ant_dfa |> fst in 
-  print_endline (Anticipate.string_of_result ant_res ant_dfa)) prog
+  print_endline (Anticipate.string_of_result ant_res ant_dfa)) (fst prog)
 
 
 

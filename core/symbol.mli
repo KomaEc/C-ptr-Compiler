@@ -14,3 +14,5 @@ val empty : 'a table
 val enter : t -> 'a -> 'a table -> 'a table 
 
 val lookup : t -> 'a table -> 'a
+
+val map : ('a -> 'b) -> 'a table -> 'b table

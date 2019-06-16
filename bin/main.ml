@@ -15,6 +15,7 @@ module T = Cm_core.Translate
 module Proc = Cm_core.Procdesc
 module Dataflow = Cm_core.Dataflow
 module Pre = Cm_core.Pre
+module Binary = Cm_backend.Binary
 
 let print_position outx lexbuf = 
   let pos = lexbuf.lex_curr_p in 
@@ -33,7 +34,7 @@ let parse_with_error lexbuf =
 ;;
 
 let check_with_error s = 
-  try check s with 
+  try check s |> fst with 
   | Duplicated_Definition i -> 
     fprintf stderr "%a %s" printInfo i "Duplicated definition\n"; []
   | Lack_Definition i -> 
@@ -77,21 +78,23 @@ let () =
           print_newline();
           let prog = check_with_error s in
           print_endline "\nTranslating to Mimple...\n";
-          Mimple.print_prog prog;
+          Mimple.print_prog (prog, Cm_core.Symbol.empty);
           print_newline ();
 
           let prog' = T.get_mimple_ori () in
-          Mimple.print_prog prog';
+          Mimple.print_prog (prog', Cm_core.Symbol.empty);
           print_newline ();
           print_endline "hello";
           
-          let procs = Proc.from_prog prog in
+          let procs = Proc.from_prog (prog, Cm_core.Symbol.empty) in
           (*let () = List.iter Proc.insert_goto procs in *)
           print_endline (Proc.string_of_t_list procs);
           (*let () = List.iter (fun proc -> Proc.(test(recover proc))) procs in*)
           (*let () = Proc.test procs in*)
           let prog1 = T.get_mimple_after_pre () in 
-          Mimple.print_prog prog1;
+          Mimple.print_prog (prog1, Cm_core.Symbol.empty);
+
+          Binary.compile (prog1, Cm_core.Symbol.empty);
 
 (*
           let prog1 = T.get_mimple1() in 
